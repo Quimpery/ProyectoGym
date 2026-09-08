@@ -1,0 +1,67 @@
+*{
+    padding: 0;
+}
+body{
+    background-image: url('assets/img/Fondo\ de\ gym.jpg');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    height: 1000px
+}
+header{
+    background-image: url('assets/img/Fondo\ de\ gym.jpg');
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    height: 300px;
+}
+.inicio{
+    
+display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: rgb(255, 255, 255);
+  font-size: 100px; 
+}
+
+.inicio h1{
+    font-size: 80px;
+    font-weight: 300px;
+    font-style: italic;
+    margin-bottom: 3px;
+    }
+
+.inicio p{
+    font-size: 30px;
+    font-weight: 20px;
+    padding-bottom: 10px;
+    }
+.inicio .boton {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.inicio .Descripcion {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+button{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background-position: center;
+    height: 60px; 
+    font-size: 15px;
+    text-align: center;
+    gap: 20px;
+    width: 190px;
+    padding: 30px;
+    border-radius: 30px;
+    background-color: rgb(11, 41, 210);
+    color:aliceblue;
+    border-color: rgb(255, 0, 0);   
+}

@@ -1,0 +1,108 @@
+[
+  {
+    "ContainingType": "FinalProgramacion4.GymRutinas.api.Controllers.EjercicioController",
+    "Method": "GetEjercicios",
+    "RelativePath": "api/ejercicios",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FinalProgramacion4.GymRutinas.api.Controllers.EjercicioController",
+    "Method": "CreateEjercicio",
+    "RelativePath": "api/ejercicios",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "ejercicio",
+        "Type": "FinalProgramacion4.GymRutinas.api.Models.Ejercicio",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FinalProgramacion4.GymRutinas.api.Controllers.EjercicioController",
+    "Method": "DeleteEjercicio",
+    "RelativePath": "api/ejercicios/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FinalProgramacion4.GymRutinas.api.Controllers.RutinaController",
+    "Method": "CreateRutina",
+    "RelativePath": "api/rutina",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "rutina",
+        "Type": "FinalProgramacion4.GymRutinas.api.Models.Rutina",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FinalProgramacion4.GymRutinas.api.Controllers.RutinaController",
+    "Method": "DeleteRutina",
+    "RelativePath": "api/rutina/{id}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FinalProgramacion4.GymRutinas.api.Controllers.RutinaController",
+    "Method": "UpdateRutina",
+    "RelativePath": "api/rutina/{id}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "FinalProgramacion4.GymRutinas.api.Controllers.RutinaController",
+    "Method": "VerEjerciciosPorRutina",
+    "RelativePath": "api/rutina/{idRutina}/ejercicios",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "idRutina",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  }
+]
