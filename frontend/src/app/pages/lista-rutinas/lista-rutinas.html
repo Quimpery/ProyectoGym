@@ -1,0 +1,88 @@
+<!--
+  TEMPLATE de ListaRutinas
+  ============================================================
+  Novedades respecto de la etapa anterior:
+    <app-buscador ... />         un componente HIJO nuestro.
+      etiqueta="texto"           input con un TEXTO fijo (sin corchetes).
+      (buscar)="alBuscar($event)" escucha el output del hijo; $event es el texto.
+    [routerLink]="['/rutinas', rutina.id]"  arma la URL /rutinas/5.
+    [disabled]="condicion"       PROPERTY BINDING: el valor sale de código.
+-->
+<section>
+  <header class="encabezado">
+    <div>
+      <h1>Rutinas</h1>
+      @if (!cargando() && !error()) {
+        <p class="subtitulo">{{ resumen() }}</p>
+      }
+    </div>
+  </header>
+
+  <!-- El buscador está FUERA del @if: así no se borra lo escrito mientras carga. -->
+  <app-buscador etiqueta="Buscar rutinas por nombre" placeholder="Por ejemplo: fuerza" (buscar)="alBuscar($event)" />
+
+  @if (cargando()) {
+    <p class="estado" role="status">Cargando rutinas...</p>
+  } @else if (error()) {
+    <div class="estado estado-error" role="alert">
+      <p>{{ error() }}</p>
+      <button type="button" class="boton" (click)="reintentar()">Reintentar</button>
+    </div>
+  } @else {
+    <ul class="grilla">
+      @for (rutina of rutinas(); track rutina.id) {
+        <li class="tarjeta">
+          <h2>
+            <a [routerLink]="['/rutinas', rutina.id]">{{ rutina.nombre }}</a>
+          </h2>
+
+          @if (rutina.descripcion) {
+            <p class="descripcion">{{ rutina.descripcion }}</p>
+          }
+
+          <p class="dato">
+            {{ rutina.cantidadEjercicios }} ejercicios ·
+            creada el {{ rutina.fechaCreacion | date: 'dd/MM/yyyy' }}
+          </p>
+
+          <ul class="dias" aria-label="Días de entrenamiento">
+            @for (dia of rutina.dias; track dia) {
+              <li class="chip">{{ etiquetasDia[dia] }}</li>
+            } @empty {
+              <li class="chip chip-vacio">Sin ejercicios</li>
+            }
+          </ul>
+
+          <div class="acciones">
+            <a
+              class="boton boton-secundario boton-chico"
+              [routerLink]="['/rutinas', rutina.id]"
+              [attr.aria-label]="'Ver detalle de la rutina ' + rutina.nombre"
+            >
+              Ver detalle
+            </a>
+            <!-- Mientras se elimina ESTA rutina, su botón queda deshabilitado. -->
+            <button
+              type="button"
+              class="boton boton-peligro boton-chico"
+              [disabled]="eliminandoId() === rutina.id"
+              [attr.aria-label]="'Eliminar la rutina ' + rutina.nombre"
+              (click)="eliminar(rutina)"
+            >
+              {{ eliminandoId() === rutina.id ? 'Eliminando...' : 'Eliminar' }}
+            </button>
+          </div>
+        </li>
+      } @empty {
+        <!-- Mensaje distinto si no hay resultados de búsqueda o si no hay nada cargado. -->
+        <li class="estado">
+          @if (textoBusqueda()) {
+            No se encontraron rutinas que contengan "{{ textoBusqueda() }}".
+          } @else {
+            Todavía no hay rutinas cargadas.
+          }
+        </li>
+      }
+    </ul>
+  }
+</section>

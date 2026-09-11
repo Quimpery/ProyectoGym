@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 
+import { Mensajes } from './components/mensajes/mensajes';
+
 // ------------------------------------------------------------
 // COMPONENTE RAÍZ (App)
 // ------------------------------------------------------------
@@ -15,7 +17,8 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
   //   RouterOutlet     -> <router-outlet />
   //   RouterLink       -> routerLink="/rutinas"
   //   RouterLinkActive -> routerLinkActive="activo"
-  imports: [RouterOutlet, RouterLink, RouterLinkActive],
+  //   Mensajes         -> <app-mensajes />
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, Mensajes],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

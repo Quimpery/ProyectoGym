@@ -1,0 +1,54 @@
+<!--
+  TEMPLATE de DetalleRutina
+  ============================================================
+  @if (rutina(); as rutina)  -> si rutina() no es null, la guarda en una
+  variable "rutina" para usarla adentro del bloque sin repetir rutina().
+-->
+<a routerLink="/rutinas" class="volver">← Volver al listado</a>
+
+@if (cargando()) {
+  <p class="estado" role="status">Cargando rutina...</p>
+} @else if (error()) {
+  <div class="estado estado-error" role="alert">
+    <p>{{ error() }}</p>
+    <button type="button" class="boton" (click)="cargarRutina()">Reintentar</button>
+  </div>
+} @else if (rutina(); as rutina) {
+  <header class="cabecera">
+    <div>
+      <h1>{{ rutina.nombre }}</h1>
+      @if (rutina.descripcion) {
+        <p class="descripcion">{{ rutina.descripcion }}</p>
+      }
+      <p class="dato">
+        Creada el {{ rutina.fechaCreacion | date: "dd/MM/yyyy 'a las' HH:mm" }} ·
+        {{ rutina.ejercicios.length }} ejercicios en {{ ejerciciosPorDia().length }} días
+      </p>
+    </div>
+
+    <div class="acciones">
+      <button type="button" class="boton boton-peligro" [disabled]="eliminando()" (click)="eliminar(rutina)">
+        {{ eliminando() ? 'Eliminando...' : 'Eliminar rutina' }}
+      </button>
+    </div>
+  </header>
+
+  <!-- Solo aparecen los días que tienen ejercicios (lo resuelve el computed). -->
+  <div class="dias">
+    @for (grupo of ejerciciosPorDia(); track grupo.dia) {
+      <section class="dia" [attr.aria-labelledby]="'dia-' + grupo.dia">
+        <h2 [id]="'dia-' + grupo.dia">{{ grupo.etiqueta }}</h2>
+        <ol class="lista-ejercicios">
+          @for (ejercicio of grupo.ejercicios; track ejercicio.id) {
+            <li>
+              <!-- Le pasamos el ejercicio al componente hijo con [ejercicio]. -->
+              <app-ejercicio-card [ejercicio]="ejercicio" />
+            </li>
+          }
+        </ol>
+      </section>
+    } @empty {
+      <p class="estado">Esta rutina todavía no tiene ejercicios.</p>
+    }
+  </div>
+}

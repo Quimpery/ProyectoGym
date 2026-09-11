@@ -1,10 +1,8 @@
 /*
-  CSS de RutinaLista
+  CSS de ListaRutinas
   ------------------------------------------------------------
   Este CSS está ENCAPSULADO: solo afecta al HTML de este componente.
-  Angular le agrega atributos únicos a los elementos, así que la clase
-  .tarjeta de acá no pisa ninguna .tarjeta de otra pantalla.
-  Las variables var(--...) y las clases .boton / .estado vienen de
+  Las variables var(--...) y las clases .boton / .estado / .campo vienen de
   src/styles.css, que es GLOBAL (aplica a toda la app).
 */
 
@@ -29,8 +27,7 @@
 /*
   GRILLA RESPONSIVE sin media queries:
   "repeat(auto-fill, minmax(260px, 1fr))" = poné tantas columnas de al menos
-  260px como entren; si sobra espacio, repartilo. En un celular queda 1
-  columna, en una notebook 3 o 4.
+  260px como entren; si sobra espacio, repartilo.
 */
 .grilla {
   list-style: none;
@@ -60,6 +57,16 @@
 .tarjeta h2 {
   margin: 0;
   font-size: 1.15rem;
+}
+
+.tarjeta h2 a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tarjeta h2 a:hover {
+  color: var(--color-primario);
+  text-decoration: underline;
 }
 
 .descripcion {
@@ -94,4 +101,14 @@
 .chip-vacio {
   background: var(--color-gris-claro);
   color: var(--color-texto-suave);
+}
+
+/* margin-top: auto empuja los botones al fondo de la tarjeta:
+   así quedan alineados aunque las tarjetas tengan distinto contenido. */
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
 }

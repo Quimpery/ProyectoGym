@@ -109,6 +109,29 @@ h3 {
   background: var(--color-peligro-oscuro);
 }
 
+.boton-chico {
+  padding: 0.35rem 0.75rem;
+  font-size: 0.9rem;
+}
+
+/* ---------- CAMPOS DE FORMULARIO ---------- */
+.etiqueta {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-weight: 600;
+}
+
+.campo {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  /* borde con contraste 3:1 sobre blanco (requisito WCAG para controles) */
+  border: 1px solid #7b8794;
+  border-radius: 8px;
+  font: inherit;
+  color: var(--color-texto);
+  background: var(--color-superficie);
+}
+
 /* ---------- MENSAJES DE ESTADO (cargando, error, vacío) ---------- */
 .estado {
   padding: 2rem 1rem;

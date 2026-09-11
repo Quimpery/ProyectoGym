@@ -2,7 +2,7 @@ import { registerLocaleData } from '@angular/common';
 import { provideHttpClient } from '@angular/common/http';
 import localeEsAr from '@angular/common/locales/es-AR';
 import { ApplicationConfig, LOCALE_ID, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 
 import { routes } from './app.routes';
 
@@ -15,7 +15,7 @@ import { routes } from './app.routes';
 // error "NullInjectorError: No provider for ...".
 
 // Carga los datos del idioma español (Argentina): nombres de meses, formato
-// de fechas y números. Lo usan pipes como "date".
+// de fechas y números. Lo usan pipes como "date" y "number".
 registerLocaleData(localeEsAr);
 
 export const appConfig: ApplicationConfig = {
@@ -24,7 +24,9 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
 
     // Habilita el ROUTER con la tabla de rutas de app.routes.ts.
-    provideRouter(routes),
+    // withComponentInputBinding(): los parámetros de la URL (como el :id de
+    // /rutinas/:id) llegan automáticamente a los input() del componente.
+    provideRouter(routes, withComponentInputBinding()),
 
     // Habilita HttpClient para poder hacer peticiones a la API.
     // Sin esta línea, RutinaService falla al inyectar HttpClient.
