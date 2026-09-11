@@ -1,0 +1,2052 @@
+﻿================================================================================
+
+                        A N G U L A R   P A R A   S T O A   G Y M
+
+              Guia de arranque escrita sobre el codigo real del repositorio
+                    Para dos desarrolladores que vienen de C# y .NET
+
+              Proyecto: ProyectoGym  |  Rama: feature/Nicolas
+              Stack: Angular 21.2 (zoneless, SSR) + .NET con EF Core + SQL Server
+
+================================================================================
+
+
+COMO USAR ESTA GUIA
+-------------------
+
+Leela en orden la primera vez. Despues funciona como referencia: cada seccion es
+independiente. Las secciones 20 y 21 son las accionables: ahi esta exactamente
+que tocar en el repo.
+
+
+INDICE
+------
+
+  ANTES DE EMPEZAR
+  00 . Como esta tu proyecto hoy
+  01 . Que es el front y que hace Angular
+  02 . Node, npm y el CLI
+  03 . Anatomia del proyecto
+  04 . TypeScript viniendo de C#
+
+  EL NUCLEO DE ANGULAR
+  05 . El componente
+  06 . Binding: los 4 tipos
+  07 . Control flow: @if y @for
+  08 . Signals
+  09 . input() y output()
+
+  CONECTAR CON .NET
+  10 . Servicios e inyeccion de dependencias
+  11 . HttpClient contra tu API
+  12 . Observables y RxJS
+  13 . CORS y el lado .NET
+
+  ARMAR LA APP
+  14 . Ruteo
+  15 . Formularios reactivos
+  16 . Pipes
+  17 . Ciclo de vida
+  18 . Estilos y CSS
+  19 . SSR: la trampa
+
+  MANOS A LA OBRA
+  20 . Tus 12 bugs, en orden
+  21 . La vista completa
+  22 . Plan de 2 semanas
+
+
+
+================================================================================
+00 . COMO ESTA TU PROYECTO HOY
+================================================================================
+
+Un diagnostico honesto antes de la teoria, asi saben para que sirve cada cosa.
+
+Ya tienen un proyecto Angular 21 scaffoldeado con SSR, un backend .NET con
+Entity Framework, y tres pantallas empezadas: home, ejercicios y rutinas. Esta
+bien encaminado. Pero hoy, si corrieran "ng serve", no verian nada: hay dos
+bloqueantes.
+
+
+  [A] NO HAY <router-outlet>                                          (FRONT)
+      El archivo app.html tiene el HTML del home escrito a mano y ningun lugar
+      donde el router pueda pintar las rutas. Navegues a donde navegues,
+      siempre ves lo mismo.
+
+  [B] FALTA provideHttpClient()                                       (FRONT)
+      Tu ejercicioServices inyecta HttpClient, pero nadie lo registro en
+      app.config.ts. Al entrar a /ejercicios vas a comer un NullInjectorError.
+
+  [C] TU APP ES ZONELESS                                             (CONFIG)
+      No hay zone.js instalado. Eso significa que los signals no son "lo
+      moderno y opcional": son el mecanismo por el cual la pantalla se entera
+      de que algo cambio. Tu listaEjercicios: any[] puede no repintar nunca.
+
+  [D] EL ENDPOINT NO DEVUELVE EJERCICIOS                               (BACK)
+      GetEjercicios() llama al service pero descarta el resultado y devuelve
+      { message: "Fin de lista" }. Aunque el front funcionara perfecto,
+      recibiria eso.
+
+  [E] CORS NO ESTA CONFIGURADO                                         (BACK)
+      Angular corre en localhost:4200 y tu API en localhost:7194. Son origenes
+      distintos: el navegador va a bloquear cada llamada hasta que lo habilites
+      en Program.cs.
+
+
+La lista completa (12 items) esta en la SECCION 20, ordenada por que desbloquea
+que. Todo lo que hay en el medio es la teoria para que entiendan POR QUE son
+bugs.
+
+
+
+================================================================================
+01 . QUE ES EL FRONT Y QUE HACE ANGULAR
+================================================================================
+
+El cambio mental mas grande al venir de MVC.
+
+En el .NET MVC que dieron en la facultad, el ciclo es: el navegador pide una
+URL, el servidor arma el HTML completo con Razor, lo manda, y el navegador lo
+muestra. Cada click que cambia la pantalla es un viaje nuevo al servidor y una
+recarga completa.
+
+Angular invierte eso. Es una SPA (Single Page Application): el navegador
+descarga UNA VEZ un paquete de JavaScript, y a partir de ahi toda la aplicacion
+vive en el navegador. Cuando el usuario hace click en "Ver ejercicios", no se
+recarga nada: JavaScript borra un pedazo del DOM y dibuja otro. El servidor solo
+entra en juego para mandar DATOS (JSON), nunca HTML.
+
+
+  TU BACKEND .NET                      | TU FRONT ANGULAR
+  -------------------------------------+--------------------------------------
+  Devuelve JSON desde                  | Lo consume y decide como dibujarlo
+  EjercicioController                  |
+  -------------------------------------+--------------------------------------
+  Valida, guarda en SQL Server,        | Valida en pantalla (UX), nunca es la
+  autoriza                             | validacion real
+  -------------------------------------+--------------------------------------
+  Es la fuente de verdad               | Es una copia temporal en memoria del
+                                       | navegador
+  -------------------------------------+--------------------------------------
+  Una request, una response            | Vive por minutos, con estado que
+                                       | cambia todo el tiempo
+
+
+Angular es un FRAMEWORK, no una libreria. La diferencia importa: una libreria la
+llamas vos cuando queres; un framework te llama a vos. Vos escribis componentes
+y servicios, y Angular decide cuando instanciarlos, cuando dibujarlos y cuando
+destruirlos. Es exactamente la misma relacion que tenes con ASP.NET Core: vos
+escribis un Controller, el framework decide cuando llamarlo.
+
+
+LAS TRES PIEZAS QUE VAS A ESCRIBIR TODO EL TIEMPO
+
+  * COMPONENTES - una clase TypeScript + un HTML. Es una porcion de pantalla
+    con su logica. Todo lo visual es un componente.
+
+  * SERVICIOS - clases sin pantalla, con la logica reusable: hablar con la API,
+    guardar estado compartido. Identicos a tus ServiceEjercicio de .NET.
+
+  * RUTAS - un mapa de "esta URL muestra este componente". Es el equivalente a
+    tu tabla de routing de MVC.
+
+
+  >> CONTEXTO
+     Angular 21 es una version muy nueva (fines de 2025). Mucho tutorial de
+     YouTube y mucho StackOverflow te va a mostrar *ngIf, NgModule, @Input() con
+     decorador y constructor(private http: HttpClient). TODO ESO SIGUE
+     FUNCIONANDO PERO ESTA SUPERADO. Esta guia te ensena la forma actual. Si un
+     tutorial arranca con app.module.ts, es de 2022: busca otro.
+
+
+
+================================================================================
+02 . NODE, NPM Y EL CLI
+================================================================================
+
+El equivalente a .NET SDK, NuGet y "dotnet".
+
+
+  MUNDO .NET                           | MUNDO JAVASCRIPT
+  -------------------------------------+--------------------------------------
+  .NET SDK / runtime                   | Node.js - ejecuta JS fuera del
+                                       | navegador
+  NuGet                                | npm - el gestor de paquetes
+  .csproj                              | package.json - dependencias y scripts
+  packages.lock.json                   | package-lock.json - versiones exactas
+  ~/.nuget/packages (global)           | node_modules/ - local a cada proyecto
+  dotnet restore                       | npm install
+  dotnet run                           | npm start  ->  ng serve
+  dotnet build                         | npm run build  ->  ng build
+
+
+Una diferencia que sorprende: node_modules/ es una carpeta local a cada
+proyecto, con miles de archivos y cientos de megas. Va siempre en el .gitignore
+(el tuyo ya lo tiene). Se regenera con "npm install" a partir del
+package-lock.json. Nunca la subas ni la copies a mano.
+
+
+COMANDOS QUE VAS A USAR
+
+  npm install
+      Instala todo lo del package.json. Corrélo una vez al clonar.
+
+  npm install nombre
+      Agrega un paquete nuevo (equivale a agregar un NuGet).
+
+  npm start
+      Levanta el server de desarrollo en localhost:4200 con recarga automatica.
+
+  ng generate component features/rutinas/detalle
+      Crea el componente con sus archivos y el boilerplate.
+      Abreviado: ng g c ...
+
+  ng generate service services/rutina
+      Crea un servicio. Abreviado: ng g s ...
+
+  ng build
+      Compila para produccion en dist/.
+
+
+  >> EL ERROR DE POWERSHELL
+     Si al correr npm te aparece "no se puede cargar el archivo npm.ps1 porque
+     la ejecucion de scripts esta deshabilitada", no es un problema de npm:
+     PowerShell bloquea scripts por defecto. Se arregla una sola vez, y solo
+     para tu usuario:
+
+         Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
+
+     Confirmas con S y listo. Alternativa sin tocar nada: usar
+     "npm.cmd install".
+
+
+  >> COSTUMBRE UTIL
+     Usa siempre "ng generate" en lugar de crear archivos a mano. El CLI genera
+     los nombres, el selector, los imports y la convencion de archivos correcta
+     para tu version de Angular. Te ahorra la mitad de los errores de
+     principiante.
+
+
+
+================================================================================
+03 . ANATOMIA DEL PROYECTO
+================================================================================
+
+Que es cada archivo que ya tenes.
+
+    frontend/
+    |- angular.json            <- configuracion del build (como el .csproj)
+    |- package.json            <- dependencias y scripts
+    |- tsconfig.json           <- configuracion del compilador TypeScript
+    |- public/                 <- archivos estaticos que se copian tal cual
+    |- src/
+       |- index.html           <- el UNICO html real. Contiene <app-root>
+       |- main.ts              <- punto de entrada (tu Program.cs del front)
+       |- styles.css           <- estilos globales
+       |- environments/        <- apiUrl por entorno (dev vs produccion)
+       |- app/
+          |- app.ts            <- componente raiz
+          |- app.html          <- template del componente raiz
+          |- app.config.ts     <- providers globales (tu builder.Services)
+          |- app.routes.ts     <- tabla de rutas
+          |- features/         <- una carpeta por pantalla
+          |  |- home/
+          |  |- ejercicios/
+          |  |- rutinas/
+          |- services/         <- servicios (tu carpeta Services de .NET)
+
+
+EL RECORRIDO DEL ARRANQUE
+
+Vale la pena seguirlo una vez a mano, porque explica de donde sale todo:
+
+  1. El navegador carga index.html, que tiene un tag vacio:
+     <app-root></app-root>
+
+  2. Se ejecuta main.ts, que llama a bootstrapApplication(App, appConfig).
+
+  3. Angular busca el componente cuyo selector es "app-root" (es tu clase App)
+     y renderiza su template app.html adentro de ese tag.
+
+  4. Si app.html tiene un <router-outlet>, el router mira la URL, busca en
+     app.routes.ts y pinta el componente que corresponda AHI ADENTRO.
+
+
+  !! BUG EN TU CODIGO
+     Tu app.html importa RouterOutlet en el componente App, pero NUNCA USA EL
+     TAG. En su lugar tiene el HTML del home hardcodeado. Resultado: el paso 4
+     nunca ocurre y ninguna ruta se muestra. Se arregla en la SECCION 14.
+
+
+app.config.ts ES TU Program.cs
+------------------------------
+
+Esta equivalencia es la mas directa de todas. Compara:
+
+  --- Program.cs (lo que ya sabes hacer) ---
+
+    builder.Services.AddControllers();
+    builder.Services.AddScoped<ServiceEjercicio>();
+    builder.Services.AddDbContext<AplicationDbContext>(...);
+
+  --- app/app.config.ts (lo mismo, del otro lado) ---
+
+    export const appConfig: ApplicationConfig = {
+      providers: [
+        provideRouter(routes),      // habilita el ruteo
+        provideHttpClient(),        // habilita HttpClient  <- TE FALTA ESTE
+      ]
+    };
+
+Es literalmente el mismo concepto: un contenedor de inyeccion de dependencias al
+que le registras servicios al arrancar. Si un componente pide algo que no esta
+registrado aca, explota, igual que en .NET.
+
+
+
+================================================================================
+04 . TYPESCRIPT VINIENDO DE C#
+================================================================================
+
+La buena noticia: es el lenguaje mas parecido a C# que vas a encontrar en el
+front.
+
+TypeScript lo creo Anders Hejlsberg, el mismo que diseno C#. No es casualidad
+que se parezcan. TypeScript es JavaScript + tipos, y esos tipos SOLO EXISTEN EN
+TIEMPO DE COMPILACION: se borran al compilar. En runtime no hay validacion de
+tipos. Es la diferencia mas importante con C#.
+
+
+  C#                                   | TYPESCRIPT
+  -------------------------------------+--------------------------------------
+  string nombre = "Press";             | const nombre: string = 'Press';
+  int series = 4;                      | const series: number = 4;
+  bool activo;                         | let activo: boolean;
+  List<Ejercicio>                      | Ejercicio[]
+  object                               | unknown
+  dynamic                              | any            (EVITALO)
+  null / nullable                      | null y undefined (son dos!)
+  ?. y ??                              | ?. y ??  (identicos)
+  $"Hola {n}"                          | `Hola ${n}`
+  public class X                       | export class X
+  using X;                             | import { X } from './x';
+  Task<T> / async / await              | Promise<T> / async / await
+  lista.Where(x => x.Peso > 20)        | lista.filter(x => x.peso > 20)
+  lista.Select(x => x.Nombre)          | lista.map(x => x.nombre)
+  lista.FirstOrDefault(...)            | lista.find(...)
+  lista.Any(...) / .All(...)           | lista.some(...) / lista.every(...)
+
+
+INTERFACE: TU MEJOR AMIGA
+-------------------------
+
+En C# usas clases para representar datos. En TypeScript, para datos que vienen
+de una API, se usa "interface": es solo una forma, no genera codigo, y
+desaparece al compilar. Traduci tus modelos de C# a interfaces:
+
+  --- src/app/models/ejercicio.ts (crea este archivo) ---
+
+    export interface Ejercicio {
+      id_ejercicio: number;
+      nombre: string;
+      diaSemana: string;
+      series: number;
+      repeticiones: number;
+      peso: number;
+      orden: number;
+      id_rutina: number;
+    }
+
+    export interface Rutina {
+      id_rutina: number;
+      nombre: string;
+      descripcion: string;
+      fechaCreacion: string;   // las fechas llegan como texto ISO, no Date
+      diaSemana: string;
+      ejerciciosPorDia: Ejercicio[];
+    }
+
+
+  >> DOS DETALLES QUE MUERDEN
+
+     camelCase. ASP.NET Core serializa a JSON en camelCase por defecto. Tu
+     propiedad C# "Nombre" llega como "nombre". Si en TypeScript escribis
+     ejercicio.Nombre te da undefined SIN NINGUN ERROR.
+
+     Las fechas son strings. JSON no tiene tipo fecha. Tu DateTime
+     FechaCreacion llega como "2026-09-08T14:30:00Z". Tipalo como string y
+     formatealo con el pipe "date" (SECCION 16).
+
+
+EVITA any
+---------
+
+Tu codigo actual usa "listaEjercicios: any[]" y "Observable<any>". "any" apaga
+el compilador: perdes autocompletado y errores de tipeo pasan derecho a runtime.
+Cambiar eso a Ejercicio[] te va a hacer descubrir bugs solo, mientras escribis.
+
+
+UNION TYPES Y LITERALES
+-----------------------
+
+Algo que TypeScript hace mejor que C#: podes tipar un valor como "uno de estos
+strings exactos". Perfecto para tu enum DiaSemana, que en la API viaja como
+texto:
+
+    export type DiaSemana =
+      | 'Lunes' | 'Martes' | 'Miercoles' | 'Jueves'
+      | 'Viernes' | 'Sabado' | 'Domingo';
+
+    // ahora esto es un error de compilacion:
+    const d: DiaSemana = 'Lunez';   // el compilador te avisa
+
+
+
+================================================================================
+05 . EL COMPONENTE
+================================================================================
+
+La unidad basica. Todo lo que ves en pantalla es uno.
+
+Un componente son dos archivos que trabajan juntos: una clase TypeScript con los
+datos y la logica, y un HTML que los muestra. El decorador @Component es el
+pegamento: es el analogo directo de tus atributos [ApiController] y [HttpGet],
+metadata que le dice al framework como tratar esta clase.
+
+  --- src/app/features/ejercicios/ejercicios.ts ---
+
+    import { Component, ChangeDetectionStrategy, signal, inject } from '@angular/core';
+
+    @Component({
+      selector: 'app-ejercicios',           // el tag HTML que lo invoca
+      templateUrl: './ejercicios.html',     // donde esta el HTML
+      styleUrl: './ejercicios.css',         // CSS propio de este componente
+      imports: [],                          // que otras cosas usa su template
+      changeDetection: ChangeDetectionStrategy.OnPush,
+    })
+    export class Ejercicios {
+      // todo lo publico aca es visible desde el template
+      titulo = 'Listado de ejercicios';
+    }
+
+
+LAS CUATRO PROPIEDADES DEL DECORADOR
+
+  selector
+      El nombre del tag. Con "app-ejercicios", otro template lo usa escribiendo
+      <app-ejercicios />. El prefijo app- evita chocar con tags HTML reales.
+
+  templateUrl
+      Ruta al HTML, relativa a este archivo. Para componentes chicos podes usar
+      "template:" con el HTML inline entre backticks.
+
+  styleUrl
+      CSS ENCAPSULADO: solo aplica a este componente. Ver SECCION 18.
+
+  imports
+      La mas importante y la que mas confunde. Ver abajo.
+
+
+imports: POR QUE TU TEMPLATE NO RECONOCE NADA
+---------------------------------------------
+
+En Angular moderno cada componente es STANDALONE: declara por si mismo todo lo
+que su template necesita. No hay un modulo central que importe todo para todos.
+
+Esto genera el error mas frecuente al empezar. Si en el template escribis
+routerLink pero no pusiste RouterLink en imports, Angular NO TIRA ERROR VISIBLE:
+simplemente el atributo no hace nada. Lo mismo con [formGroup] sin
+ReactiveFormsModule, o al usar otro componente sin importarlo.
+
+
+  SI EN EL TEMPLATE USAS...            | TENES QUE IMPORTAR
+  -------------------------------------+--------------------------------------
+  <router-outlet>                      | RouterOutlet de @angular/router
+  routerLink="..."                     | RouterLink de @angular/router
+  [formGroup], formControlName         | ReactiveFormsModule de @angular/forms
+  | date, | currency, | async          | DatePipe, CurrencyPipe, AsyncPipe
+                                       | de @angular/common
+  <app-tarjeta-ejercicio />            | La clase TarjetaEjercicio
+  @if, @for, @switch                   | Nada. Son sintaxis del compilador.
+
+
+  >> REGLA PRACTICA
+     Cuando algo del template "no hace nada" y no hay error en consola, el 80%
+     de las veces falta un import en el array imports. Es el primer lugar donde
+     mirar.
+
+
+OnPush
+------
+
+Ponelo siempre. Le dice a Angular: "no revises este componente todo el tiempo,
+revisalo solo cuando cambie un signal que uso, llegue un input nuevo, o se
+dispare un evento de mi template". Es mas rapido y, sobre todo, te fuerza a
+manejar el estado con signals, que es exactamente lo que tu app zoneless
+necesita. El CLAUDE.md de tu proyecto ya lo pide.
+
+
+
+================================================================================
+06 . BINDING: LOS 4 TIPOS
+================================================================================
+
+Como se comunican la clase y el HTML. Esto es el corazon de Angular.
+
+El template no es HTML estatico: es un HTML con superpoderes que Angular
+compila. Hay exactamente cuatro formas de conectar la clase con el template, y
+las vas a usar todo el dia.
+
+
+1 . INTERPOLACION - mostrar un valor
+------------------------------------
+
+    <h1>{{ titulo }}</h1>
+    <p>Series: {{ ejercicio.series }}</p>
+    <p>Total: {{ ejercicio.series * ejercicio.repeticiones }} reps</p>
+
+Las dobles llaves evaluan una expresion y la muestran como texto. Podes hacer
+cuentas y llamar metodos, pero mantenelo simple: si necesita logica, va en la
+clase.
+
+
+2 . PROPERTY BINDING - pasar un valor a un atributo
+---------------------------------------------------
+
+    <img [src]="ejercicio.imagenUrl" [alt]="ejercicio.nombre">
+    <button [disabled]="cargando()">Guardar</button>
+    <app-tarjeta [ejercicio]="e" />
+
+Los corchetes significan "lo de adentro de las comillas es CODIGO, no texto".
+La diferencia es total:
+
+    <img src="ejercicio.imagenUrl">    <!-- busca un archivo con ese nombre -->
+    <img [src]="ejercicio.imagenUrl">  <!-- usa el valor de la propiedad -->
+
+
+3 . EVENT BINDING - reaccionar a algo
+-------------------------------------
+
+    <button (click)="guardar()">Guardar</button>
+    <button (click)="eliminar(ejercicio.id_ejercicio)">Borrar</button>
+    <input (input)="filtrar($event)">
+    <form (submit)="enviar()">
+
+Los parentesis escuchan un evento del DOM y ejecutan un metodo. $event es el
+objeto del evento.
+
+
+4 . TWO-WAY BINDING - ida y vuelta
+----------------------------------
+
+    <input [(ngModel)]="nombre">
+
+Los corchetes con parentesis adentro (le dicen "banana in a box") combinan los
+dos anteriores: si el usuario escribe, la propiedad cambia; si la propiedad
+cambia, el input se actualiza. Requiere importar FormsModule.
+
+PARA FORMULARIOS DE VERDAD NO USES ESTO: usa formularios reactivos (SECCION 15).
+Two-way binding sirve para casos sueltos: un campo de busqueda, un checkbox de
+filtro.
+
+
+CLASES Y ESTILOS DINAMICOS
+--------------------------
+
+Muy usado, y hay una forma correcta en Angular moderno:
+
+    <!-- una clase condicional -->
+    <div [class.completado]="ejercicio.hecho">...</div>
+
+    <!-- varias a la vez -->
+    <div [class]="{ activo: esActivo(), pesado: peso() > 50 }">...</div>
+
+    <!-- estilos -->
+    <div [style.width.%]="progreso()">...</div>
+
+No uses ngClass ni ngStyle: son la forma vieja y el CLAUDE.md de tu proyecto los
+prohibe explicitamente.
+
+
+  !! BUG EN TU CODIGO
+     En app.html tenes <div className="titulo">. "className" es de REACT, no de
+     Angular. En HTML el atributo es "class". Ese div hoy no tiene ninguna clase
+     aplicada.
+
+
+
+================================================================================
+07 . CONTROL FLOW: @if Y @for
+================================================================================
+
+Condicionales y bucles dentro del HTML. Aca es donde tu lista de ejercicios
+finalmente aparece.
+
+Desde Angular 17 el control de flujo es sintaxis propia del compilador, con
+arroba. Es mas rapido, mas legible, y NO REQUIERE NINGUN IMPORT. Si un tutorial
+te muestra *ngIf y *ngFor, es la forma anterior.
+
+
+@if / @else
+-----------
+
+    @if (cargando()) {
+      <p>Cargando ejercicios...</p>
+    } @else if (error()) {
+      <p class="error">{{ error() }}</p>
+    } @else {
+      <p>{{ ejercicios().length }} ejercicios encontrados</p>
+    }
+
+
+@for - Y EL track OBLIGATORIO
+-----------------------------
+
+    @for (ejercicio of ejercicios(); track ejercicio.id_ejercicio) {
+      <article class="tarjeta">
+        <h3>{{ ejercicio.nombre }}</h3>
+        <p>{{ ejercicio.series }} x {{ ejercicio.repeticiones }} - {{ ejercicio.peso }} kg</p>
+      </article>
+    } @empty {
+      <p>Todavia no hay ejercicios cargados.</p>
+    }
+
+"track" es OBLIGATORIO: sin el no compila. Le dice a Angular como identificar
+cada elemento para no re-dibujar toda la lista cuando cambia un solo item. Usa
+siempre el ID unico; si no hay ninguno, "track $index".
+
+"@empty" es un regalo: el bloque que se muestra cuando la lista esta vacia. En
+Angular viejo habia que combinar *ngFor con un *ngIf aparte.
+
+
+VARIABLES DEL BUCLE
+
+Adentro del @for tenes disponibles $index, $first, $last, $even, $odd y $count:
+
+    @for (e of ejercicios(); track e.id_ejercicio) {
+      <li [class.par]="$even">{{ $index + 1 }}. {{ e.nombre }}</li>
+    }
+
+
+@switch
+-------
+
+    @switch (ejercicio.diaSemana) {
+      @case ('Lunes')  { <span class="badge lun">Lunes</span> }
+      @case ('Martes') { <span class="badge mar">Martes</span> }
+      @default         { <span class="badge">{{ ejercicio.diaSemana }}</span> }
+    }
+
+
+@let - VARIABLES EN EL TEMPLATE
+-------------------------------
+
+Para no repetir un calculo largo:
+
+    @let total = ejercicio.series * ejercicio.repeticiones;
+    <p>{{ total }} repeticiones totales</p>
+
+
+  !! BUG EN TU CODIGO
+     Tu ejercicios.html es solo un <h1> y un <p>: el componente trae los datos
+     de la API pero NADIE LOS DIBUJA. Falta el @for. La vista completa esta
+     resuelta en la SECCION 21.
+
+
+
+================================================================================
+08 . SIGNALS
+================================================================================
+
+El concepto mas importante de la guia, y el que no tiene equivalente en C#.
+
+Un SIGNAL es una caja que guarda un valor y AVISA cuando cambia. Suena poco,
+pero es todo el modelo de reactividad de Angular moderno.
+
+
+POR QUE ESTO TE IMPORTA MAS QUE A OTROS
+---------------------------------------
+
+Angular historicamente usaba una libreria llamada zone.js que parcheaba todas
+las funciones asincronicas del navegador para detectar "algo puede haber
+cambiado" y revisar la app entera. Funcionaba, pero era magia negra y era lento.
+
+TU PROYECTO NO TIENE zone.js. Corre en modo ZONELESS, que es el default de
+Angular 21. Eso significa que Angular ya no adivina: se entera de que hay que
+repintar solo por estas vias:
+
+  * Un SIGNAL leido en el template cambio de valor.
+  * El pipe "async" emitio un valor nuevo.
+  * Se disparo un event binding del template, un (click) por ejemplo.
+  * Alguien llamo explicitamente a markForCheck().
+
+
+  !! BUG EN TU CODIGO
+     Asignar una propiedad comun adentro de un subscribe() NO ESTA EN ESA LISTA.
+     Tu codigo actual hace exactamente eso:
+
+         listaEjercicios: any[] = [];
+
+         verEjercicios() {
+           this.ejercicioServices.getEjerciciosRutina().subscribe({
+             next: (data) => { this.listaEjercicios = data; }  // no se entera
+           });
+         }
+
+     Los datos llegan, el console.log los muestra, y la pantalla se queda vacia.
+     Es el bug mas desconcertante para alguien que arranca, porque parece que la
+     API fallo cuando en realidad respondio bien.
+
+
+LAS TRES FUNCIONES
+------------------
+
+--- signal() : estado que cambia ---
+
+    import { signal } from '@angular/core';
+
+    ejercicios = signal<Ejercicio[]>([]);
+    cargando   = signal(false);
+    filtro     = signal('');
+
+    // LEER: siempre con parentesis, como llamar una funcion
+    console.log(this.ejercicios().length);
+
+    // ESCRIBIR: reemplazar el valor
+    this.ejercicios.set(nuevaLista);
+
+    // ESCRIBIR: derivar del valor anterior
+    this.cargando.update(v => !v);
+    this.ejercicios.update(lista => [...lista, nuevoEjercicio]);
+
+En el template los lees igual, con parentesis: {{ ejercicios().length }}.
+Olvidarse los parentesis es el error de tipeo numero uno: sin ellos mostras la
+funcion en vez del valor.
+
+
+  >> REGLA
+     Nunca modifiques el contenido de un signal por dentro
+     (this.ejercicios().push(x)). El signal no se entera porque la referencia
+     del array no cambio. Siempre set() o update() con un array nuevo:
+     update(l => [...l, x]).
+
+
+--- computed() : estado derivado ---
+
+Un valor que se calcula a partir de otros signals y se recalcula solo cuando
+alguno cambia:
+
+    ejercicios = signal<Ejercicio[]>([]);
+    diaElegido = signal<string>('Lunes');
+
+    // se recalcula solo si cambia ejercicios o diaElegido
+    ejerciciosDelDia = computed(() =>
+      this.ejercicios().filter(e => e.diaSemana === this.diaElegido())
+    );
+
+    pesoTotal = computed(() =>
+      this.ejerciciosDelDia().reduce((acc, e) => acc + e.peso * e.series, 0)
+    );
+
+Esto es enormemente mejor que llamar un metodo desde el template. Un metodo se
+ejecuta en cada repintado; un computed se cachea y solo recalcula si sus
+dependencias cambiaron. Angular las detecta solo: no declaras nada.
+
+
+--- effect() : reaccionar a un cambio ---
+
+    constructor() {
+      effect(() => {
+        console.log('El filtro cambio a:', this.filtro());
+      });
+    }
+
+effect corre cada vez que cambia algun signal que lee. Sirve para efectos
+secundarios: loguear, guardar en localStorage, sincronizar con algo externo.
+NO LO USES PARA CALCULAR VALORES: para eso esta computed. Al empezar, casi nunca
+vas a necesitar un effect; si sentis que si, probablemente querias un computed.
+
+
+TU COMPONENTE, REESCRITO
+------------------------
+
+  --- src/app/features/ejercicios/ejercicios.ts (version correcta) ---
+
+    import { Component, ChangeDetectionStrategy, signal, computed, inject, OnInit } from '@angular/core';
+    import { EjercicioService } from '../../services/ejercicio.service';
+    import { Ejercicio } from '../../models/ejercicio';
+
+    @Component({
+      selector: 'app-ejercicios',
+      templateUrl: './ejercicios.html',
+      changeDetection: ChangeDetectionStrategy.OnPush,
+    })
+    export class Ejercicios implements OnInit {
+      private ejercicioService = inject(EjercicioService);
+
+      ejercicios = signal<Ejercicio[]>([]);
+      cargando   = signal(true);
+      error      = signal<string | null>(null);
+
+      cantidad = computed(() => this.ejercicios().length);
+
+      ngOnInit(): void {
+        this.ejercicioService.getEjercicios().subscribe({
+          next: (data) => {
+            this.ejercicios.set(data);   // ahora si, la vista se entera
+            this.cargando.set(false);
+          },
+          error: (err) => {
+            this.error.set('No se pudieron cargar los ejercicios.');
+            this.cargando.set(false);
+            console.error(err);
+          },
+        });
+      }
+    }
+
+
+
+================================================================================
+09 . input() Y output()
+================================================================================
+
+Como se pasan datos entre componentes padre e hijo.
+
+Los componentes se anidan. Una pantalla de ejercicios probablemente tenga un
+componente "tarjeta de ejercicio" que se repite. El padre le pasa datos con
+input(); el hijo le avisa cosas al padre con output(). Datos bajan, eventos
+suben.
+
+  --- src/app/features/ejercicios/tarjeta-ejercicio.ts ---
+
+    import { Component, input, output, computed, ChangeDetectionStrategy } from '@angular/core';
+    import { Ejercicio } from '../../models/ejercicio';
+
+    @Component({
+      selector: 'app-tarjeta-ejercicio',
+      changeDetection: ChangeDetectionStrategy.OnPush,
+      template: `
+        <article class="tarjeta">
+          <h3>{{ ejercicio().nombre }}</h3>
+          <p>{{ ejercicio().series }} x {{ ejercicio().repeticiones }}</p>
+          <p>Volumen: {{ volumen() }} kg</p>
+          <button (click)="eliminar.emit(ejercicio().id_ejercicio)">Borrar</button>
+        </article>
+      `,
+    })
+    export class TarjetaEjercicio {
+      ejercicio = input.required<Ejercicio>();   // obligatorio
+      destacado = input(false);                  // opcional, default false
+
+      eliminar = output<number>();
+
+      volumen = computed(() => {
+        const e = this.ejercicio();
+        return e.series * e.repeticiones * e.peso;
+      });
+    }
+
+  --- como lo usa el padre ---
+
+    @for (e of ejercicios(); track e.id_ejercicio) {
+      <app-tarjeta-ejercicio
+        [ejercicio]="e"
+        [destacado]="e.peso > 80"
+        (eliminar)="borrarEjercicio($event)" />
+    }
+
+Fijate la simetria con el binding de la SECCION 06: los input() se pasan con
+corchetes, los output() se escuchan con parentesis. Es la misma sintaxis que
+usas con elementos HTML nativos, y no es casualidad: para el padre, un
+componente hijo se comporta igual que un <input>.
+
+
+  >> DETALLE IMPORTANTE
+     input() devuelve un SIGNAL DE SOLO LECTURA. Se lee con parentesis
+     (ejercicio()) y podes usarlo dentro de un computed(). Eso es lo que hace
+     que todo el sistema reaccione solo cuando el padre cambia el valor.
+
+     La forma vieja con decorador (@Input() ejercicio!: Ejercicio;) sigue
+     existiendo pero no es reactiva de la misma manera. En una app zoneless como
+     la tuya, usa siempre input().
+
+
+
+================================================================================
+10 . SERVICIOS E INYECCION DE DEPENDENCIAS
+================================================================================
+
+Aca vas a sentirte en casa: es casi identico a .NET.
+
+Un servicio es una clase sin pantalla, con logica reusable. Los componentes se
+ocupan de mostrar; los servicios, de traer datos, guardarlos y compartirlos.
+Exactamente tu ServiceEjercicio de C#.
+
+  --- src/app/services/ejercicio.service.ts ---
+
+    import { Injectable, inject } from '@angular/core';
+    import { HttpClient } from '@angular/common/http';
+
+    @Injectable({ providedIn: 'root' })   // ~ AddSingleton en Program.cs
+    export class EjercicioService {
+      private http = inject(HttpClient);  // ~ inyeccion por constructor en C#
+    }
+
+
+  .NET                                 | ANGULAR
+  -------------------------------------+--------------------------------------
+  builder.Services.AddSingleton<T>()   | @Injectable({ providedIn: 'root' })
+  builder.Services.AddScoped<T>()      | providers: [T] en un componente
+  Inyeccion por constructor            | inject(T) o el constructor
+  Registrar en Program.cs              | Registrar en app.config.ts
+                                       | (o con providedIn)
+
+
+"providedIn: 'root'" significa: registralo automaticamente en el inyector raiz y
+crea UNA SOLA INSTANCIA compartida por toda la app. Es un singleton. No hace
+falta escribir nada en app.config.ts: el propio servicio se registra. Ya lo
+tenes bien puesto en tu codigo.
+
+
+inject() EN VEZ DEL CONSTRUCTOR
+-------------------------------
+
+Tu codigo actual usa la forma clasica, que es valida:
+
+    constructor(private ejercicioServices: ejercicioServices) {}
+
+La forma moderna, que pide el CLAUDE.md de tu proyecto:
+
+    private ejercicioService = inject(EjercicioService);
+
+Hace lo mismo pero funciona tambien fuera de un constructor (en guards,
+interceptors y funciones de ruta), y no te obliga a arrastrar un constructor
+largo cuando inyectas cinco cosas. Adoptala desde ahora.
+
+
+  >> CONVENCION DE NOMBRES
+     Tu clase se llama "ejercicioServices", en minuscula y plural. En TypeScript
+     las clases van en PascalCase y singular: "EjercicioService". Y el archivo,
+     en kebab-case: "ejercicio.service.ts". No es cosmetico: cuando el proyecto
+     crezca, la convencion es lo que te deja encontrar las cosas.
+
+
+SERVICIOS PARA COMPARTIR ESTADO
+-------------------------------
+
+Un servicio no sirve solo para llamar a la API. Como es singleton, es el lugar
+natural para estado que varias pantallas necesitan. Con signals queda muy
+limpio:
+
+    @Injectable({ providedIn: 'root' })
+    export class RutinaStore {
+      private http = inject(HttpClient);
+
+      // privado para escribir, publico de solo lectura para el resto
+      private _rutinas = signal<Rutina[]>([]);
+      rutinas = this._rutinas.asReadonly();
+
+      cantidad = computed(() => this._rutinas().length);
+
+      cargar() {
+        this.http.get<Rutina[]>(`${environment.apiUrl}/rutinas`)
+          .subscribe(data => this._rutinas.set(data));
+      }
+    }
+
+Cualquier componente que inyecte RutinaStore y lea rutinas() en su template se
+actualiza solo cuando cambian. Eso es todo el "manejo de estado" que van a
+necesitar por mucho tiempo: no hace falta NgRx ni nada parecido.
+
+
+
+================================================================================
+11 . HttpClient CONTRA TU API
+================================================================================
+
+El puente entre los dos proyectos que tienen en el repo.
+
+
+PRIMERO: REGISTRARLO
+--------------------
+
+HttpClient es un servicio de Angular, y como todo servicio hay que registrarlo.
+Este es tu bloqueante B:
+
+  --- src/app/app.config.ts ---
+
+    import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+    import { provideRouter } from '@angular/router';
+    import { provideHttpClient, withFetch } from '@angular/common/http';
+    import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
+    import { routes } from './app.routes';
+
+    export const appConfig: ApplicationConfig = {
+      providers: [
+        provideBrowserGlobalErrorListeners(),
+        provideRouter(routes),
+        provideHttpClient(withFetch()),      // <- LA LINEA QUE FALTA
+        provideClientHydration(withEventReplay()),
+      ]
+    };
+
+withFetch() hace que use la API fetch del navegador en lugar del viejo
+XMLHttpRequest. Es recomendado siempre, y necesario para que funcione bien con
+el SSR que ya tenes activado.
+
+
+EL SERVICIO COMPLETO
+--------------------
+
+  --- src/app/services/ejercicio.service.ts ---
+
+    import { Injectable, inject } from '@angular/core';
+    import { HttpClient } from '@angular/common/http';
+    import { Observable } from 'rxjs';
+    import { environment } from '../../environments/environment';
+    import { Ejercicio } from '../models/ejercicio';
+
+    @Injectable({ providedIn: 'root' })
+    export class EjercicioService {
+      private http = inject(HttpClient);
+      private baseUrl = `${environment.apiUrl}/ejercicios`;
+
+      getEjercicios(): Observable<Ejercicio[]> {
+        return this.http.get<Ejercicio[]>(this.baseUrl);
+      }
+
+      getPorId(id: number): Observable<Ejercicio> {
+        return this.http.get<Ejercicio>(`${this.baseUrl}/${id}`);
+      }
+
+      crear(ejercicio: Omit<Ejercicio, 'id_ejercicio'>): Observable<Ejercicio> {
+        return this.http.post<Ejercicio>(this.baseUrl, ejercicio);
+      }
+
+      actualizar(id: number, ejercicio: Ejercicio): Observable<Ejercicio> {
+        return this.http.put<Ejercicio>(`${this.baseUrl}/${id}`, ejercicio);
+      }
+
+      eliminar(id: number): Observable<void> {
+        return this.http.delete<void>(`${this.baseUrl}/${id}`);
+      }
+    }
+
+Puntos a notar:
+
+  * EL GENERICO IMPORTA. this.http.get<Ejercicio[]>(...) le dice a TypeScript
+    que esperar. No valida en runtime (si la API manda otra cosa, no se queja),
+    pero te da autocompletado y detecta errores de tipeo.
+
+  * LOS VERBOS SON LOS MISMOS que tus [HttpGet], [HttpPost], [HttpDelete].
+
+  * EL BODY DEL POST es el segundo argumento y se serializa a JSON solo. Es tu
+    [FromBody] Ejercicio ejercicio.
+
+  * environment.apiUrl ya lo tenes bien configurado apuntando a
+    https://localhost:7194/api. Cuando vayan a produccion, cambian solo
+    environment.ts.
+
+
+  >> LO MAS RARO DE HttpClient
+     Llamar a getEjercicios() NO DISPARA NINGUN PEDIDO HTTP. Solo arma la
+     receta. El pedido sale recien cuando alguien hace .subscribe(). Es el error
+     clasico: escribir el metodo, no suscribirse, y no entender por que no pasa
+     nada. Lo explico en la proxima seccion.
+
+
+QUERY PARAMS Y HEADERS
+----------------------
+
+    import { HttpParams } from '@angular/common/http';
+
+    getPorDia(dia: string): Observable<Ejercicio[]> {
+      const params = new HttpParams().set('dia', dia);
+      return this.http.get<Ejercicio[]>(this.baseUrl, { params });
+      // -> GET /api/ejercicios?dia=Lunes
+    }
+
+Nunca armes la query string concatenando strings a mano: HttpParams escapa los
+valores correctamente.
+
+
+
+================================================================================
+12 . OBSERVABLES Y RxJS
+================================================================================
+
+Lo minimo indispensable. RxJS es enorme; con esto alcanza para empezar.
+
+Vienen de Task<T> y await. Un Observable<T> se parece, pero con tres
+diferencias:
+
+
+  Task<T> EN C#                        | Observable<T> EN ANGULAR
+  -------------------------------------+--------------------------------------
+  Arranca sola al crearse              | No hace nada hasta el .subscribe()
+  Devuelve un valor y termina          | Puede emitir muchos valores en el
+                                       | tiempo
+  Se cancela con CancellationToken     | Se cancela con .unsubscribe()
+
+
+Para HTTP la diferencia importa poco: un pedido emite un valor y termina. Pero
+explica el comportamiento "perezoso" de la seccion anterior.
+
+
+SUSCRIBIRSE
+-----------
+
+    this.ejercicioService.getEjercicios().subscribe({
+      next:     (data) => this.ejercicios.set(data),        // llego bien
+      error:    (err)  => this.error.set('Fallo la carga'), // fallo
+      complete: ()     => this.cargando.set(false),         // termino
+    });
+
+Maneja siempre el error. Si no lo haces y la API falla, la excepcion se pierde
+en la consola y el usuario queda mirando un spinner infinito.
+
+
+LOS OPERADORES QUE VAS A USAR
+-----------------------------
+
+RxJS tiene cientos de operadores. Estos cuatro cubren casi todo al principio. Se
+aplican con .pipe():
+
+  map           Transforma el valor. Igual que .Select() de LINQ.
+  catchError    Captura el error y devuelve un valor alternativo. El try/catch.
+  switchMap     Encadena un observable con otro y cancela el anterior.
+                Para busquedas.
+  debounceTime  Espera a que el usuario deje de tipear antes de disparar.
+
+    import { map, catchError } from 'rxjs/operators';
+    import { of } from 'rxjs';
+
+    getEjercicios(): Observable<Ejercicio[]> {
+      return this.http.get<Ejercicio[]>(this.baseUrl).pipe(
+        map(lista => lista.sort((a, b) => a.orden - b.orden)),
+        catchError(err => {
+          console.error('Error al traer ejercicios', err);
+          return of([]);   // devolvemos lista vacia en vez de romper
+        })
+      );
+    }
+
+
+DOS ATAJOS QUE EVITAN EL subscribe
+----------------------------------
+
+--- El pipe async ---
+
+Se suscribe y se desuscribe solo desde el template:
+
+    @if (ejercicios$ | async; as lista) {
+      @for (e of lista; track e.id_ejercicio) { ... }
+    }
+
+Requiere importar AsyncPipe. La convencion es terminar en $ las variables que
+son observables.
+
+
+--- toSignal() : el mejor de los dos mundos ---
+
+Convierte un observable en un signal, y como es un signal, funciona perfecto con
+tu app zoneless:
+
+    import { toSignal } from '@angular/core/rxjs-interop';
+
+    export class Ejercicios {
+      private service = inject(EjercicioService);
+
+      ejercicios = toSignal(this.service.getEjercicios(), { initialValue: [] });
+
+      cantidad = computed(() => this.ejercicios().length);
+    }
+
+Sin ngOnInit, sin subscribe, sin fugas de memoria. Para pantallas que solo
+cargan datos al entrar, es la forma mas limpia. Una vez que tengan el subscribe
+funcionando y lo entiendan, refactoricen a esto.
+
+
+  >> FUGAS DE MEMORIA
+     Un subscribe() manual sigue vivo aunque el componente se destruya. Para
+     HTTP no es grave (emite una vez y completa), pero para observables que
+     emiten continuamente es una fuga real. toSignal() y el pipe async se
+     limpian solos: por eso conviene preferirlos.
+
+
+
+================================================================================
+13 . CORS Y EL LADO .NET
+================================================================================
+
+El muro con el que choca todo el mundo la primera vez.
+
+Angular corre en https://localhost:4200. Tu API en https://localhost:7194. Para
+el navegador son ORIGENES DISTINTOS, y por seguridad bloquea que una pagina de
+un origen lea la respuesta de otro, salvo que el servidor lo autorice
+explicitamente. Vas a ver algo asi en la consola:
+
+    Access to fetch at 'https://localhost:7194/api/ejercicios' from origin
+    'http://localhost:4200' has been blocked by CORS policy: No 'Access-
+    Control-Allow-Origin' header is present on the requested resource.
+
+Es importante entender que ESTO NO ES UN ERROR DE ANGULAR. El pedido salio, tu
+API respondio bien, y el navegador tiro la respuesta a la basura. Se arregla del
+lado de .NET:
+
+  --- Backend/.../Program.cs ---
+
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy("AngularDev", policy =>
+            policy.WithOrigins("http://localhost:4200", "https://localhost:4200")
+                  .AllowAnyHeader()
+                  .AllowAnyMethod());
+    });
+
+    var app = builder.Build();
+
+    // IMPORTANTE: va antes de UseAuthorization y de MapControllers
+    app.UseCors("AngularDev");
+    app.UseAuthorization();
+    app.MapControllers();
+
+
+  !! OTROS DOS EN TU Program.cs
+
+     * Te falta app.MapControllers(). Hoy solo tenes MapControllerRoute, que es
+       routing de MVC clasico, no de API con atributos. Tus rutas
+       [Route("api/ejercicios")] pueden no engancharse.
+
+     * builder.Services.AddScoped<ServiceEjercicio>() esta escrito DOS VECES.
+       No rompe nada, pero saca una.
+
+
+  >> CERTIFICADO HTTPS
+     Si el navegador rechaza https://localhost:7194 por certificado no
+     confiable, corre una vez:
+
+         dotnet dev-certs https --trust
+
+     Y abri https://localhost:7194/api/ejercicios directo en el navegador para
+     aceptar el certificado antes de probar desde Angular.
+
+
+CONSEJO DE METODO
+-----------------
+
+Antes de escribir una linea de Angular contra un endpoint nuevo, probalo con
+Swagger o pegando la URL en el navegador. Si ahi no devuelve el JSON que
+esperas, el problema es del backend y vas a perder horas buscandolo en el front.
+Es literalmente tu caso hoy: GET /api/ejercicios devuelve
+{"message":"Fin de lista"}, no una lista.
+
+
+
+================================================================================
+14 . RUTEO
+================================================================================
+
+Como se navega sin recargar la pagina.
+
+Tu app.routes.ts ya esta casi bien:
+
+  --- src/app/app.routes.ts ---
+
+    export const routes: Routes = [
+      { path: '',            redirectTo: 'home', pathMatch: 'full' },
+      { path: 'home',        component: Home },
+      { path: 'ejercicios',  component: Ejercicios },
+      { path: 'rutinas',     component: Rutinas },
+      { path: 'rutinas/:id', component: DetalleRutina },   // parametro
+      { path: '**',          redirectTo: 'home' },         // 404, siempre ultima
+    ];
+
+Le falta la ruta vacia con pathMatch: 'full': hoy, entrar a localhost:4200 cae
+en el comodin **. Funciona de casualidad, pero conviene ser explicito.
+
+
+EL <router-outlet>: TU BLOQUEANTE A
+-----------------------------------
+
+El router necesita un lugar donde pintar. Ese lugar es <router-outlet>, y va en
+el template del componente raiz. Todo lo que pongas ALREDEDOR (header, nav,
+footer) queda fijo entre navegaciones: es tu _Layout.cshtml.
+
+  --- src/app/app.html (reemplaza el contenido actual por esto) ---
+
+    <header class="topbar">
+      <h1>{{ title() }}</h1>
+      <nav>
+        <a routerLink="/home"       routerLinkActive="activo">Inicio</a>
+        <a routerLink="/ejercicios" routerLinkActive="activo">Ejercicios</a>
+        <a routerLink="/rutinas"    routerLinkActive="activo">Rutinas</a>
+      </nav>
+    </header>
+
+    <main>
+      <router-outlet />   <!-- aca se dibuja la ruta activa -->
+    </main>
+
+  --- src/app/app.ts (hay que importar RouterLink y RouterLinkActive) ---
+
+    import { Component, signal, ChangeDetectionStrategy } from '@angular/core';
+    import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+
+    @Component({
+      selector: 'app-root',
+      imports: [RouterOutlet, RouterLink, RouterLinkActive],
+      templateUrl: './app.html',
+      styleUrl: './app.css',
+      changeDetection: ChangeDetectionStrategy.OnPush,
+    })
+    export class App {
+      protected readonly title = signal('Stoa Gym');
+    }
+
+El HTML que hoy tenes en app.html (el hero con los botones) es contenido de la
+pantalla de inicio: movelo a features/home/home.html, que hoy dice
+"home works!".
+
+
+  >> routerLink, NO href
+     Usa siempre routerLink. Un href normal recarga la pagina entera y perdes
+     todo el estado, justo lo que la SPA vino a evitar.
+     routerLinkActive="activo" agrega esa clase CSS al link de la ruta actual:
+     gratis para marcar el menu.
+
+
+LEER PARAMETROS DE LA URL
+-------------------------
+
+Para /rutinas/5, la forma mas comoda es activar el binding automatico de inputs:
+
+    // en app.config.ts
+    provideRouter(routes, withComponentInputBinding()),
+
+    // en el componente: el parametro :id llega como un input
+    export class DetalleRutina {
+      id = input.required<string>();   // se llena solo desde la URL
+    }
+
+
+NAVEGAR DESDE CODIGO
+--------------------
+
+    private router = inject(Router);
+
+    guardar() {
+      this.service.crear(this.form.value).subscribe(() => {
+        this.router.navigate(['/ejercicios']);
+      });
+    }
+
+
+LAZY LOADING
+------------
+
+Para que cada pantalla se descargue solo cuando el usuario entra, cambia
+"component" por "loadComponent":
+
+    {
+      path: 'rutinas',
+      loadComponent: () => import('./features/rutinas/rutinas').then(m => m.Rutinas),
+    }
+
+Con tres pantallas no cambia nada. Adoptalo igual: es una linea, y cuando la app
+crezca ya esta resuelto.
+
+
+
+================================================================================
+15 . FORMULARIOS REACTIVOS
+================================================================================
+
+Para dar de alta ejercicios y rutinas.
+
+Angular tiene dos sistemas de formularios. Usa REACTIVOS: el formulario se
+define en TypeScript, con tipos y validaciones, y el HTML solo se conecta. Es
+mas codigo al principio y mucho menos dolor despues.
+
+  --- src/app/features/ejercicios/nuevo-ejercicio.ts ---
+
+    import { Component, inject, signal, ChangeDetectionStrategy } from '@angular/core';
+    import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+    import { Router } from '@angular/router';
+    import { EjercicioService } from '../../services/ejercicio.service';
+
+    @Component({
+      selector: 'app-nuevo-ejercicio',
+      imports: [ReactiveFormsModule],
+      templateUrl: './nuevo-ejercicio.html',
+      changeDetection: ChangeDetectionStrategy.OnPush,
+    })
+    export class NuevoEjercicio {
+      private fb = inject(FormBuilder);
+      private service = inject(EjercicioService);
+      private router = inject(Router);
+
+      guardando = signal(false);
+
+      form = this.fb.nonNullable.group({
+        nombre:       ['', [Validators.required, Validators.maxLength(60)]],
+        diaSemana:    ['Lunes', Validators.required],
+        series:       [3, [Validators.required, Validators.min(1)]],
+        repeticiones: [10, [Validators.required, Validators.min(1)]],
+        peso:         [0,  Validators.min(0)],
+        orden:        [1,  Validators.required],
+        id_rutina:    [0,  Validators.required],
+      });
+
+      onSubmit() {
+        if (this.form.invalid) {
+          this.form.markAllAsTouched();   // muestra todos los errores
+          return;
+        }
+        this.guardando.set(true);
+        this.service.crear(this.form.getRawValue()).subscribe({
+          next: () => this.router.navigate(['/ejercicios']),
+          error: () => this.guardando.set(false),
+        });
+      }
+    }
+
+  --- nuevo-ejercicio.html ---
+
+    <form [formGroup]="form" (ngSubmit)="onSubmit()">
+
+      <label for="nombre">Nombre del ejercicio</label>
+      <input id="nombre" formControlName="nombre">
+      @if (form.controls.nombre.touched && form.controls.nombre.invalid) {
+        <small class="error">El nombre es obligatorio.</small>
+      }
+
+      <label for="dia">Dia</label>
+      <select id="dia" formControlName="diaSemana">
+        <option value="Lunes">Lunes</option>
+        <option value="Martes">Martes</option>
+        <option value="Miercoles">Miercoles</option>
+      </select>
+
+      <label for="series">Series</label>
+      <input id="series" type="number" formControlName="series">
+
+      <button type="submit" [disabled]="guardando()">
+        {{ guardando() ? 'Guardando...' : 'Guardar ejercicio' }}
+      </button>
+    </form>
+
+
+LO QUE HAY QUE RETENER
+
+  * [formGroup]="form" conecta el <form> con el objeto de la clase.
+
+  * formControlName="nombre" conecta cada campo. EL STRING TIENE QUE COINCIDIR
+    EXACTO con la clave del grupo; si no, falla en silencio.
+
+  * nonNullable.group hace que TypeScript infiera los tipos: form.value.series
+    es number, no number | null | undefined.
+
+  * Cada control expone touched, dirty, valid, invalid y errors. Mostra el error
+    solo si touched, para no gritarle al usuario apenas abre el form.
+
+  * ReactiveFormsModule en imports, si no nada funciona.
+
+  * Cada <input> con su <label for>: es accesibilidad basica y el CLAUDE.md del
+    proyecto la exige.
+
+
+  >> RECORDATORIO
+     La validacion del front es UX, no seguridad. Cualquiera puede saltearla con
+     las DevTools. Tu EjercicioController tiene que validar igual del lado del
+     servidor, y con [Required] en los modelos ya tenes la base.
+
+
+
+================================================================================
+16 . PIPES
+================================================================================
+
+Formatear valores en el template.
+
+Un pipe transforma un valor solo para mostrarlo. La sintaxis es la barra
+vertical:
+
+    {{ rutina.fechaCreacion | date:'dd/MM/yyyy' }}
+    {{ ejercicio.peso | number:'1.1-2' }} kg
+    {{ ejercicio.nombre | uppercase }}
+    {{ objeto | json }}              <!-- para debuggear -->
+
+
+  PIPE                  PARA QUE                              IMPORT
+  --------------------- ------------------------------------- ----------------
+  date                  Formatear fechas ISO de .NET          DatePipe
+  number                Decimales controlados                 DecimalPipe
+  currency              Montos con simbolo                    CurrencyPipe
+  uppercase/lowercase   Mayusculas y minusculas               UpperCasePipe...
+  json                  Ver un objeto entero. Invaluable.     JsonPipe
+  async                 Suscribirse a un observable           AsyncPipe
+
+
+  >> TRUCO DE DEBUG
+     Cuando no sepas que forma tiene lo que devolvio tu API, tira
+     <pre>{{ ejercicios() | json }}</pre> en el template. Te muestra el objeto
+     completo en pantalla y en dos segundos ves si el problema es camelCase, un
+     campo que no viene, o que la lista esta vacia.
+
+
+Los pipes de fecha y numero necesitan que Angular sepa el idioma. Para fechas en
+espanol, agrega esto:
+
+    // en app.config.ts
+    import { registerLocaleData } from '@angular/common';
+    import localeEsAr from '@angular/common/locales/es-AR';
+    import { LOCALE_ID } from '@angular/core';
+
+    registerLocaleData(localeEsAr);
+
+    providers: [
+      { provide: LOCALE_ID, useValue: 'es-AR' },
+      // ...el resto
+    ]
+
+
+
+================================================================================
+17 . CICLO DE VIDA
+================================================================================
+
+Cuatro hooks, de los cuales vas a usar uno.
+
+
+  HOOK              CUANDO CORRE                    PARA QUE
+  ----------------- ------------------------------- ---------------------------
+  constructor       Al instanciar la clase          Solo inyectar. Nada pesado.
+  ngOnInit          Una vez, tras recibir inputs    CARGAR DATOS DE LA API.
+                                                    El que vas a usar.
+  ngOnDestroy       Al destruir el componente       Limpiar suscripciones
+                                                    manuales, timers.
+  ngAfterViewInit   Tras renderizar el template     Tocar el DOM directo.
+                                                    Raro y evitable.
+
+
+    export class Ejercicios implements OnInit {
+      private service = inject(EjercicioService);
+      ejercicios = signal<Ejercicio[]>([]);
+
+      ngOnInit(): void {
+        this.service.getEjercicios().subscribe(d => this.ejercicios.set(d));
+      }
+    }
+
+POR QUE NO EN EL CONSTRUCTOR: cuando corre el constructor, los input() todavia
+no llegaron. Si tu carga depende de un input o de un parametro de ruta, en el
+constructor seria undefined. ngOnInit corre despues. Acostumbrate a esa division
+y te ahorras una clase entera de bugs.
+
+Nota el "implements OnInit": no es obligatorio en TypeScript (Angular llama el
+metodo igual), pero hace que el compilador te avise si escribis mal el nombre.
+Ponelo siempre. Tu codigo ya lo hace bien.
+
+
+  >> MIRANDO ADELANTE
+     Con toSignal() o el pipe async muchas veces no necesitas ngOnInit ni
+     ngOnDestroy. Aprende primero la forma explicita (es mas facil de debuggear
+     cuando algo no anda) y refactoriza despues.
+
+
+
+================================================================================
+18 . ESTILOS Y CSS
+================================================================================
+
+Encapsulacion: la mejor idea de Angular en este tema.
+
+El CSS que pones en el styleUrl de un componente SOLO APLICA A ESE COMPONENTE.
+Angular agrega atributos unicos a los elementos, asi que una clase .tarjeta en
+ejercicios.css no afecta a ninguna .tarjeta de otra pantalla. Se acabo el miedo
+a pisar estilos ajenos.
+
+
+  DONDE                 ALCANCE                PARA QUE
+  --------------------- ---------------------- -----------------------------
+  src/styles.css        Toda la app            Reset, variables CSS,
+                                               tipografia, colores base
+  ejercicios.css        Solo ese componente    El layout y los detalles de
+                                               esa pantalla
+
+
+VARIABLES CSS GLOBALES
+----------------------
+
+Definilas una vez en styles.css y usalas en todos los componentes. Es lo que te
+va a dar identidad visual consistente sin repetir hexadecimales:
+
+    /* src/styles.css */
+    :root {
+      --color-fondo: #0f1216;
+      --color-texto: #e8ecf1;
+      --color-acento: #d64933;
+      --radio: 8px;
+      --espacio: 16px;
+    }
+
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--color-fondo); color: var(--color-texto); }
+
+    /* ejercicios.css */
+    .tarjeta {
+      background: color-mix(in srgb, var(--color-texto) 6%, transparent);
+      border-radius: var(--radio);
+      padding: var(--espacio);
+    }
+
+
+LAYOUT: FLEXBOX Y GRID
+----------------------
+
+Es todo lo que necesitan. Para una grilla de tarjetas de ejercicios:
+
+    .lista-ejercicios {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: var(--espacio);
+    }
+
+Esa sola regla hace una grilla responsive sin media queries: mete todas las
+columnas de al menos 240px que entren. Para alinear cosas en una fila,
+display: flex con gap.
+
+
+  !! BUG EN TU angular.json
+     Tenes un bloque "assets" en la raiz del archivo, pero Angular lo lee desde
+     projects.frontend.architect.build.options.assets. En la posicion donde
+     esta, SE IGNORA. Consecuencia: src/assets/img/Fondo de gym.jpg no se copia
+     al build y la imagen no va a cargar.
+
+     Dos opciones: mover la imagen a public/ (lo mas simple, ya esta
+     configurada), o agregar "src/assets" al array de assets que si esta en
+     options.
+
+     Aparte: renombra el archivo sin espacios ni mayusculas: fondo-gym.jpg. Los
+     espacios en URLs traen problemas.
+
+
+
+================================================================================
+19 . SSR: LA TRAMPA
+================================================================================
+
+Tu proyecto lo tiene activado y conviene que sepan que implica.
+
+Tu angular.json tiene "outputMode": "server" y hay un server.ts. Eso es
+SERVER-SIDE RENDERING: antes de mandar la pagina, Angular la ejecuta en Node y
+manda el HTML ya dibujado. Despues, en el navegador, la app "revive"
+(hidratacion) y sigue funcionando como SPA. Es mejor para el primer pintado y
+para Google.
+
+El problema: ese primer render corre en NODE.JS, NO EN UN NAVEGADOR. Ahi no
+existen window, document, localStorage ni alert. Si tu componente los toca
+directamente, el servidor explota con "ReferenceError: localStorage is not
+defined".
+
+    import { PLATFORM_ID, inject } from '@angular/core';
+    import { isPlatformBrowser } from '@angular/common';
+
+    export class MiComponente implements OnInit {
+      private platformId = inject(PLATFORM_ID);
+
+      ngOnInit() {
+        if (isPlatformBrowser(this.platformId)) {
+          const token = localStorage.getItem('token');   // solo en el navegador
+        }
+      }
+    }
+
+
+  >> DECISION PRACTICA
+     Para un proyecto final de facultad, SSR agrega complejidad que no
+     necesitan. Es perfectamente valido desactivarlo y enfocarse en aprender
+     Angular. Si en algun momento les tira errores raros que solo pasan "al
+     cargar la pagina" y no al navegar, es SSR.
+
+     Para sacarlo: quitar "outputMode" y "ssr" de angular.json, borrar
+     provideClientHydration(...) de app.config.ts, y eliminar server.ts,
+     main.server.ts, app.config.server.ts y app.routes.server.ts.
+
+     Si lo dejan: acuerdense de withFetch() en provideHttpClient(), y que la API
+     tiene que ser alcanzable tambien desde el servidor Node, no solo desde el
+     navegador.
+
+
+
+================================================================================
+20 . TUS 12 BUGS, EN ORDEN
+================================================================================
+
+Arreglalos en este orden: cada uno desbloquea al siguiente.
+
+
+  01 . AGREGAR provideHttpClient(withFetch())                          (FRONT)
+       app.config.ts. Sin esto, entrar a /ejercicios tira
+       NullInjectorError.
+
+  02 . PONER <router-outlet /> EN app.html                             (FRONT)
+       Y mover el hero actual a home.html. Sin esto ninguna ruta se ve.
+
+  03 . CONFIGURAR CORS EN Program.cs                                    (BACK)
+       AddCors + app.UseCors(...) antes de UseAuthorization.
+
+  04 . AGREGAR app.MapControllers()                                     (BACK)
+       Hoy solo hay MapControllerRoute, que es routing MVC, no de API con
+       atributos.
+
+  05 . VerEjercicios() DEVUELVE UNA LISTA VACIA EN MEMORIA              (BACK)
+       Usa el campo "private readonly List<Ejercicio> ejercicios" en vez de
+       context.Ejercicios. Debe ser:
+           return context.Ejercicios.ToList();
+
+  06 . GetEjercicios() DESCARTA EL RESULTADO                            (BACK)
+       Llama al service pero devuelve { message: "Fin de lista" }.
+       Debe ser:
+           return Ok(serviceEjercicio.VerEjercicios());
+
+  07 . PASAR listaEjercicios A UN signal                               (FRONT)
+       La app es zoneless: una propiedad comun asignada dentro de un
+       subscribe no repinta la vista.
+
+  08 . DIBUJAR LA LISTA CON @for                                       (FRONT)
+       ejercicios.html no muestra nada. Codigo completo en la SECCION 21.
+
+  09 . DeleteEjercicio TIENE LA CONDICION INVERTIDA                     (BACK)
+       "if (id < 0)" borra y si no rechaza. Debe ser "if (id > 0)".
+       Y al service le falta SaveChanges() despues del Remove: hoy no
+       persiste nada.
+
+  10 . className POR class                                             (FRONT)
+       En app.html. className es de React.
+
+  11 . assets MAL UBICADO EN angular.json                             (CONFIG)
+       Esta en la raiz, tiene que estar en architect.build.options. La imagen
+       de fondo no se copia al build.
+
+  12 . LIMPIEZA                                                       (VARIOS)
+       - AddScoped<ServiceEjercicio>() duplicado en Program.cs
+       - Renombrar ejercicioServices a EjercicioService
+       - Agregar la ruta { path: '', redirectTo: 'home', pathMatch: 'full' }
+       - Reemplazar los "any" por interfaces
+
+
+  >> COMO ABORDARLO
+     Del 1 al 6 son los bloqueantes: hasta que no esten los seis, no van a ver
+     un solo ejercicio en pantalla. Hanganlos juntos en una sentada y prueben.
+     Del 7 en adelante ya es mejorar algo que funciona.
+
+
+
+================================================================================
+21 . LA VISTA COMPLETA
+================================================================================
+
+Todo lo anterior junto: la pantalla de ejercicios, funcionando.
+
+Esta es la primera vista real que van a tener andando. Copien, adapten, y a
+partir de aca hagan "rutinas" por su cuenta: es el mismo patron.
+
+
+--- src/app/models/ejercicio.ts ---
+
+    export interface Ejercicio {
+      id_ejercicio: number;
+      nombre: string;
+      diaSemana: string;
+      series: number;
+      repeticiones: number;
+      peso: number;
+      orden: number;
+      id_rutina: number;
+    }
+
+
+--- src/app/services/ejercicio.service.ts ---
+
+    import { Injectable, inject } from '@angular/core';
+    import { HttpClient } from '@angular/common/http';
+    import { Observable } from 'rxjs';
+    import { environment } from '../../environments/environment';
+    import { Ejercicio } from '../models/ejercicio';
+
+    @Injectable({ providedIn: 'root' })
+    export class EjercicioService {
+      private http = inject(HttpClient);
+      private baseUrl = `${environment.apiUrl}/ejercicios`;
+
+      getEjercicios(): Observable<Ejercicio[]> {
+        return this.http.get<Ejercicio[]>(this.baseUrl);
+      }
+
+      eliminar(id: number): Observable<unknown> {
+        return this.http.delete(`${this.baseUrl}/${id}`);
+      }
+    }
+
+
+--- src/app/features/ejercicios/ejercicios.ts ---
+
+    import { Component, ChangeDetectionStrategy, signal, computed, inject, OnInit } from '@angular/core';
+    import { EjercicioService } from '../../services/ejercicio.service';
+    import { Ejercicio } from '../../models/ejercicio';
+
+    @Component({
+      selector: 'app-ejercicios',
+      templateUrl: './ejercicios.html',
+      styleUrl: './ejercicios.css',
+      changeDetection: ChangeDetectionStrategy.OnPush,
+    })
+    export class Ejercicios implements OnInit {
+      private service = inject(EjercicioService);
+
+      ejercicios = signal<Ejercicio[]>([]);
+      cargando   = signal(true);
+      error      = signal<string | null>(null);
+      diaFiltro  = signal<string>('Todos');
+
+      dias = ['Todos', 'Lunes', 'Martes', 'Miercoles', 'Jueves', 'Viernes', 'Sabado', 'Domingo'];
+
+      visibles = computed(() => {
+        const dia = this.diaFiltro();
+        const lista = this.ejercicios();
+        return dia === 'Todos' ? lista : lista.filter(e => e.diaSemana === dia);
+      });
+
+      volumenTotal = computed(() =>
+        this.visibles().reduce((acc, e) => acc + e.series * e.repeticiones * e.peso, 0)
+      );
+
+      ngOnInit(): void {
+        this.cargar();
+      }
+
+      cargar(): void {
+        this.cargando.set(true);
+        this.error.set(null);
+        this.service.getEjercicios().subscribe({
+          next: (data) => {
+            this.ejercicios.set(data);
+            this.cargando.set(false);
+          },
+          error: (err) => {
+            console.error(err);
+            this.error.set('No pudimos cargar los ejercicios. Esta corriendo la API?');
+            this.cargando.set(false);
+          },
+        });
+      }
+
+      filtrarPor(dia: string): void {
+        this.diaFiltro.set(dia);
+      }
+
+      borrar(id: number): void {
+        this.service.eliminar(id).subscribe({
+          next: () => this.ejercicios.update(l => l.filter(e => e.id_ejercicio !== id)),
+          error: (err) => console.error('No se pudo eliminar', err),
+        });
+      }
+    }
+
+
+--- src/app/features/ejercicios/ejercicios.html ---
+
+    <section class="pantalla">
+
+      <header class="encabezado">
+        <h1>Ejercicios</h1>
+        @if (!cargando() && !error()) {
+          <p class="resumen">
+            {{ visibles().length }} ejercicios -
+            {{ volumenTotal() }} kg de volumen total
+          </p>
+        }
+      </header>
+
+      <nav class="filtros">
+        @for (dia of dias; track dia) {
+          <button
+            type="button"
+            [class.activo]="diaFiltro() === dia"
+            (click)="filtrarPor(dia)">{{ dia }}</button>
+        }
+      </nav>
+
+      @if (cargando()) {
+        <p class="estado">Cargando ejercicios...</p>
+
+      } @else if (error()) {
+        <div class="estado error">
+          <p>{{ error() }}</p>
+          <button type="button" (click)="cargar()">Reintentar</button>
+        </div>
+
+      } @else {
+        <ul class="grilla">
+          @for (e of visibles(); track e.id_ejercicio) {
+            <li class="tarjeta">
+              <span class="dia">{{ e.diaSemana }}</span>
+              <h2>{{ e.nombre }}</h2>
+              <p class="carga">
+                {{ e.series }} x {{ e.repeticiones }}
+                @if (e.peso > 0) { <span>- {{ e.peso }} kg</span> }
+              </p>
+              <button type="button" class="borrar"
+                      (click)="borrar(e.id_ejercicio)"
+                      [attr.aria-label]="'Eliminar ' + e.nombre">Eliminar</button>
+            </li>
+          } @empty {
+            <li class="vacio">No hay ejercicios para este dia.</li>
+          }
+        </ul>
+      }
+
+    </section>
+
+
+--- src/app/features/ejercicios/ejercicios.css ---
+
+    .pantalla { padding: 24px; max-width: 1100px; margin: 0 auto; }
+    .encabezado h1 { margin: 0 0 4px; }
+    .resumen { color: #8b93a1; margin: 0 0 20px; }
+
+    .filtros { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+    .filtros button {
+      padding: 6px 14px; border-radius: 999px; cursor: pointer;
+      border: 1px solid #2a3140; background: transparent; color: inherit;
+    }
+    .filtros button.activo { background: #d64933; border-color: #d64933; color: #fff; }
+
+    .grilla {
+      list-style: none; padding: 0; margin: 0;
+      display: grid; gap: 16px;
+      grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    }
+    .tarjeta {
+      border: 1px solid #2a3140; border-radius: 10px; padding: 16px;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+    .tarjeta h2 { font-size: 17px; margin: 0; }
+    .dia { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: #8b93a1; }
+    .carga { margin: 0; color: #b7bfcc; }
+    .borrar { margin-top: auto; align-self: flex-start; background: none;
+              border: none; color: #d64933; cursor: pointer; padding: 4px 0; }
+    .vacio, .estado { color: #8b93a1; grid-column: 1 / -1; }
+
+
+  >> QUE MIRAR DE ESTE CODIGO
+
+     * Los tres estados (cargando, error, datos) resueltos con
+       @if/@else if/@else. Es el patron de toda pantalla que consume una API;
+       internalizalo.
+
+     * visibles() y volumenTotal() son computed: el filtro por dia no dispara
+       ninguna llamada a la API, se recalcula solo.
+
+     * El boton de reintentar y el @empty son detalles chicos que separan una
+       demo de algo que se siente terminado.
+
+
+
+================================================================================
+22 . PLAN DE 2 SEMANAS
+================================================================================
+
+Un orden concreto para dos personas trabajando en paralelo.
+
+
+  DIA 1     ENTORNO ANDANDO
+            Arreglar el execution policy, npm install, npm start. Ver la app en
+            localhost:4200. Leer las secciones 01 a 04 juntos.
+
+  DIA 2     DESBLOQUEAR EL FRONT
+            Bugs 01 y 02: provideHttpClient y <router-outlet>. Mover el hero a
+            home.html. Navegar entre las tres rutas y ver que cambian.
+
+  DIA 3     DESBLOQUEAR EL BACK
+            Bugs 03 a 06: CORS, MapControllers, y que GET /api/ejercicios
+            devuelva la lista real. Verificar con Swagger antes de tocar
+            Angular.
+
+  DIA 4     PRIMERA VISTA CON DATOS
+            Secciones 05 a 08. Armar la pantalla de ejercicios de la seccion
+            21. Este es el dia del "aha".
+
+  DIA 5     CONSOLIDAR SIGNALS
+            Seccion 08 completa. Agregar el filtro por dia con computed.
+            Reemplazar los "any" por interfaces.
+
+  DIAS 6-7  REPETIR SOLOS
+            Hacer la pantalla de rutinas sin mirar la guia. Repetir es lo que
+            fija el patron: no salteen este paso.
+
+  DIAS 8-9  COMPONENTES Y COMUNICACION
+            Seccion 09. Extraer <app-tarjeta-ejercicio> con input() y output().
+            Reusarlo en las dos pantallas.
+
+  DIAS      FORMULARIOS
+  10-11     Seccion 15. Alta de ejercicio con validaciones, POST a la API,
+            redirect al listado. Es la parte que mas suele fallar en una
+            defensa: dejenla solida.
+
+  DIA 12    DETALLE Y PARAMETROS
+            Ruta /rutinas/:id con withComponentInputBinding(). Seccion 14.
+
+  DIAS      PULIDO
+  13-14     Estados de carga y error en todas las pantallas, estilos
+            consistentes, ng build sin warnings. Repasar la seccion 20 y cerrar
+            lo que quede.
+
+
+COMO DIVIDIRSE SIENDO DOS
+-------------------------
+
+La forma que menos conflictos de git genera: UNA PANTALLA POR PERSONA, cada uno
+con su carpeta en features/. Los servicios y los modelos son territorio
+compartido: acuerdenlos antes de arrancar y despues casi no se pisan. Eviten que
+los dos toquen app.config.ts, app.routes.ts o app.html el mismo dia.
+
+
+DONDE BUSCAR CUANDO SE TRABEN
+-----------------------------
+
+  * https://angular.dev
+    La documentacion oficial, reescrita y con tutoriales interactivos. Es
+    buenisima y esta actualizada a la version que usan.
+
+  * Cuando busquen en Google, agreguen "angular 20" o "angular signals". Sin
+    eso, la mitad de los resultados son de la era NgModule y los van a
+    confundir.
+
+  * Si una respuesta menciona app.module.ts, *ngIf o @Input() con decorador: no
+    esta mal, pero es la forma anterior. Busquen el equivalente moderno en esta
+    guia.
+
+
+  >> LO UNICO QUE HAY QUE RECORDAR SI O SI
+
+     Si se olvidan de todo lo demas, que quede esto:
+
+     EN TU APP ZONELESS, LA PANTALLA SE ACTUALIZA CUANDO CAMBIA UN SIGNAL.
+
+     Estado que se ve en pantalla y cambia con el tiempo  ->  signal()
+     Valor que se calcula a partir de otros              ->  computed()
+
+     Con esas dos funciones y @if / @for se hace el 90% de una app Angular.
+
+
+================================================================================
+
+Guia escrita sobre el estado del repositorio ProyectoGym, rama feature/Nicolas.
+Angular 21.2 - zoneless - SSR activado - .NET con EF Core y SQL Server.
+
+================================================================================
