@@ -16,6 +16,7 @@
         <p class="subtitulo">{{ resumen() }}</p>
       }
     </div>
+    <a routerLink="/rutinas/nueva" class="boton">+ Nueva rutina</a>
   </header>
 
   <!-- El buscador está FUERA del @if: así no se borra lo escrito mientras carga. -->
@@ -41,7 +42,7 @@
           }
 
           <p class="dato">
-            {{ rutina.cantidadEjercicios }} ejercicios ·
+            {{ rutina.cantidadEjercicios }} @if (rutina.cantidadEjercicios === 1) { ejercicio } @else { ejercicios } ·
             creada el {{ rutina.fechaCreacion | date: 'dd/MM/yyyy' }}
           </p>
 
@@ -60,6 +61,14 @@
               [attr.aria-label]="'Ver detalle de la rutina ' + rutina.nombre"
             >
               Ver detalle
+            </a>
+            <!-- ['/rutinas', rutina.id, 'editar'] arma la URL /rutinas/5/editar -->
+            <a
+              class="boton boton-secundario boton-chico"
+              [routerLink]="['/rutinas', rutina.id, 'editar']"
+              [attr.aria-label]="'Editar la rutina ' + rutina.nombre"
+            >
+              Editar
             </a>
             <!-- Mientras se elimina ESTA rutina, su botón queda deshabilitado. -->
             <button

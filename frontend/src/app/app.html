@@ -13,8 +13,13 @@
       <span aria-hidden="true">🏋️</span> Gym Rutinas
     </a>
 
+    <!--
+      [routerLinkActiveOptions]="{ exact: true }": "activo" solo si la URL es
+      EXACTAMENTE esa. Sin esto, /rutinas/nueva también marcaría "Rutinas".
+    -->
     <nav aria-label="Navegación principal">
-      <a routerLink="/rutinas" routerLinkActive="activo">Rutinas</a>
+      <a routerLink="/rutinas" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">Rutinas</a>
+      <a routerLink="/rutinas/nueva" routerLinkActive="activo">Nueva rutina</a>
     </nav>
   </div>
 </header>

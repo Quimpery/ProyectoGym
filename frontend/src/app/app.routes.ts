@@ -18,12 +18,27 @@ export const routes: Routes = [
     title: 'Rutinas | Gym Rutinas', // texto de la pestaña del navegador
   },
 
+  // ALTA. IMPORTANTE: tiene que ir ANTES de 'rutinas/:id'. Si no, el router
+  // tomaría la palabra "nueva" como si fuera un id.
+  {
+    path: 'rutinas/nueva',
+    loadComponent: () => import('./pages/formulario-rutina/formulario-rutina').then((m) => m.FormularioRutina),
+    title: 'Nueva rutina | Gym Rutinas',
+  },
+
   // ":id" es un PARÁMETRO: coincide con /rutinas/1, /rutinas/25, etc.
   // Su valor llega al input "id" de DetalleRutina.
   {
     path: 'rutinas/:id',
     loadComponent: () => import('./pages/detalle-rutina/detalle-rutina').then((m) => m.DetalleRutina),
     title: 'Detalle de rutina | Gym Rutinas',
+  },
+
+  // EDICIÓN: usa el MISMO componente que el alta; como hay :id, sabe que edita.
+  {
+    path: 'rutinas/:id/editar',
+    loadComponent: () => import('./pages/formulario-rutina/formulario-rutina').then((m) => m.FormularioRutina),
+    title: 'Editar rutina | Gym Rutinas',
   },
 
   // "**" = cualquier otra URL que no exista. Va SIEMPRE AL FINAL.

@@ -22,11 +22,14 @@
       }
       <p class="dato">
         Creada el {{ rutina.fechaCreacion | date: "dd/MM/yyyy 'a las' HH:mm" }} ·
-        {{ rutina.ejercicios.length }} ejercicios en {{ ejerciciosPorDia().length }} días
+        <!-- @if dentro del texto para escribir bien el singular y el plural. -->
+        {{ rutina.ejercicios.length }} @if (rutina.ejercicios.length === 1) { ejercicio } @else { ejercicios }
+        en {{ ejerciciosPorDia().length }} @if (ejerciciosPorDia().length === 1) { día } @else { días }
       </p>
     </div>
 
     <div class="acciones">
+      <a class="boton boton-secundario" [routerLink]="['/rutinas', rutina.id, 'editar']">Editar rutina</a>
       <button type="button" class="boton boton-peligro" [disabled]="eliminando()" (click)="eliminar(rutina)">
         {{ eliminando() ? 'Eliminando...' : 'Eliminar rutina' }}
       </button>

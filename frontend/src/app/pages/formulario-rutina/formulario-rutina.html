@@ -1,0 +1,260 @@
+<!--
+  TEMPLATE de FormularioRutina
+  ============================================================
+  Cómo se CONECTA el HTML con el formulario definido en TypeScript:
+    <form [formGroup]="formulario">    conecta el <form> con el FormGroup.
+    formControlName="nombre"           conecta un campo con un control.
+                                       El texto tiene que coincidir EXACTO
+                                       con la clave del grupo.
+    formArrayName="ejercicios"         entra a la lista (FormArray).
+    [formGroupName]="i"                entra al grupo número i de la lista.
+    (ngSubmit)="guardar()"             se ejecuta al enviar el formulario.
+  Cada control expone: value, valid, invalid, touched, hasError('clave')...
+-->
+<a class="volver" [routerLink]="esEdicion() ? ['/rutinas', idRutina()] : ['/rutinas']">← Cancelar y volver</a>
+
+<h1>{{ esEdicion() ? 'Editar rutina' : 'Nueva rutina' }}</h1>
+
+@if (cargando()) {
+  <p class="estado" role="status">Cargando rutina...</p>
+} @else if (errorCarga()) {
+  <div class="estado estado-error" role="alert">
+    <p>{{ errorCarga() }}</p>
+    <button type="button" class="boton" (click)="reintentarCarga()">Reintentar</button>
+  </div>
+} @else {
+  <form [formGroup]="formulario" (ngSubmit)="guardar()">
+    <!-- ================= DATOS DE LA RUTINA ================= -->
+    <section class="bloque">
+      <h2>Datos de la rutina</h2>
+
+      <div class="grupo-campo">
+        <label class="etiqueta" for="nombre">Nombre <span aria-hidden="true">*</span></label>
+        <!--
+          [attr.aria-invalid]: avisa a los lectores de pantalla si el campo tiene error.
+          [attr.aria-describedby]: asocia el campo con su mensaje de error (null = no se agrega).
+        -->
+        <input
+          id="nombre"
+          class="campo"
+          type="text"
+          formControlName="nombre"
+          aria-required="true"
+          [attr.aria-invalid]="tieneError(formulario.controls.nombre)"
+          [attr.aria-describedby]="tieneError(formulario.controls.nombre) ? 'nombre-error' : null"
+        />
+        @if (tieneError(formulario.controls.nombre)) {
+          <p id="nombre-error" class="error">
+            @if (formulario.controls.nombre.hasError('required')) {
+              El nombre de la rutina es obligatorio.
+            } @else {
+              El nombre no puede superar los 100 caracteres.
+            }
+          </p>
+        }
+      </div>
+
+      <div class="grupo-campo">
+        <label class="etiqueta" for="descripcion">Descripción (opcional)</label>
+        <textarea
+          id="descripcion"
+          class="campo"
+          rows="3"
+          formControlName="descripcion"
+          [attr.aria-invalid]="tieneError(formulario.controls.descripcion)"
+          [attr.aria-describedby]="tieneError(formulario.controls.descripcion) ? 'descripcion-error' : null"
+        ></textarea>
+        @if (tieneError(formulario.controls.descripcion)) {
+          <p id="descripcion-error" class="error">La descripción no puede superar los 500 caracteres.</p>
+        }
+      </div>
+    </section>
+
+    <!-- ================= EJERCICIOS ================= -->
+    <section class="bloque">
+      <div class="bloque-encabezado">
+        <h2>Ejercicios ({{ ejercicios.length }})</h2>
+        <!-- type="button": si no, un botón dentro de un <form> ENVÍA el formulario. -->
+        <button type="button" class="boton boton-secundario" (click)="agregarEjercicio()">+ Agregar ejercicio</button>
+      </div>
+      <p class="ayuda">
+        Los ejercicios de un mismo día se hacen en el orden en que aparecen en esta lista.
+        Usá los botones ↑ y ↓ para cambiarlo.
+      </p>
+
+      <ol class="lista-ejercicios" formArrayName="ejercicios">
+        <!--
+          Recorremos los controles del FormArray.
+          track grupo: identifica cada fila por el propio objeto del grupo, así al
+          reordenar Angular MUEVE la fila en vez de destruirla y crearla de nuevo.
+          let i = $index, primero = $first, ultimo = $last: variables del @for.
+        -->
+        @for (grupo of ejercicios.controls; track grupo; let i = $index, primero = $first, ultimo = $last) {
+          <li class="ejercicio" [formGroupName]="i">
+            <div class="ejercicio-encabezado">
+              <h3>Ejercicio {{ i + 1 }}</h3>
+              <div class="ejercicio-acciones">
+                <button
+                  type="button"
+                  class="boton boton-secundario boton-chico"
+                  [disabled]="primero"
+                  [attr.aria-label]="'Subir ejercicio ' + (i + 1)"
+                  (click)="moverEjercicio(i, -1)"
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  class="boton boton-secundario boton-chico"
+                  [disabled]="ultimo"
+                  [attr.aria-label]="'Bajar ejercicio ' + (i + 1)"
+                  (click)="moverEjercicio(i, 1)"
+                >
+                  ↓
+                </button>
+                <button
+                  type="button"
+                  class="boton boton-peligro boton-chico"
+                  [attr.aria-label]="'Quitar ejercicio ' + (i + 1)"
+                  (click)="quitarEjercicio(i)"
+                >
+                  Quitar
+                </button>
+              </div>
+            </div>
+
+            <div class="ejercicio-campos">
+              <!-- Los id llevan el índice (ej-0-nombre, ej-1-nombre...) para que no se repitan. -->
+              <div class="grupo-campo campo-ancho">
+                <label class="etiqueta" [for]="'ej-' + i + '-nombre'">Nombre <span aria-hidden="true">*</span></label>
+                <input
+                  class="campo"
+                  type="text"
+                  formControlName="nombre"
+                  placeholder="Ej: Press de banca"
+                  aria-required="true"
+                  [id]="'ej-' + i + '-nombre'"
+                  [attr.aria-invalid]="tieneError(grupo.controls.nombre)"
+                  [attr.aria-describedby]="tieneError(grupo.controls.nombre) ? 'ej-' + i + '-nombre-error' : null"
+                />
+                @if (tieneError(grupo.controls.nombre)) {
+                  <p class="error" [id]="'ej-' + i + '-nombre-error'">
+                    @if (grupo.controls.nombre.hasError('required')) {
+                      El nombre es obligatorio.
+                    } @else {
+                      Máximo 100 caracteres.
+                    }
+                  </p>
+                }
+              </div>
+
+              <div class="grupo-campo">
+                <label class="etiqueta" [for]="'ej-' + i + '-dia'">Día <span aria-hidden="true">*</span></label>
+                <select class="campo" formControlName="dia" aria-required="true" [id]="'ej-' + i + '-dia'">
+                  @for (dia of dias; track dia) {
+                    <!-- value = lo que se guarda ('Miercoles'); texto = lo que se ve ('Miércoles'). -->
+                    <option [value]="dia">{{ etiquetasDia[dia] }}</option>
+                  }
+                </select>
+              </div>
+
+              <div class="grupo-campo">
+                <label class="etiqueta" [for]="'ej-' + i + '-series'">Series <span aria-hidden="true">*</span></label>
+                <!-- type="number": el control recibe un number (o null si queda vacío). -->
+                <input
+                  class="campo"
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  formControlName="series"
+                  aria-required="true"
+                  [id]="'ej-' + i + '-series'"
+                  [attr.aria-invalid]="tieneError(grupo.controls.series)"
+                  [attr.aria-describedby]="tieneError(grupo.controls.series) ? 'ej-' + i + '-series-error' : null"
+                />
+                @if (tieneError(grupo.controls.series)) {
+                  <p class="error" [id]="'ej-' + i + '-series-error'">Número entero entre 1 y 100.</p>
+                }
+              </div>
+
+              <div class="grupo-campo">
+                <label class="etiqueta" [for]="'ej-' + i + '-repeticiones'">Repeticiones <span aria-hidden="true">*</span></label>
+                <input
+                  class="campo"
+                  type="number"
+                  min="1"
+                  max="1000"
+                  step="1"
+                  formControlName="repeticiones"
+                  aria-required="true"
+                  [id]="'ej-' + i + '-repeticiones'"
+                  [attr.aria-invalid]="tieneError(grupo.controls.repeticiones)"
+                  [attr.aria-describedby]="tieneError(grupo.controls.repeticiones) ? 'ej-' + i + '-repeticiones-error' : null"
+                />
+                @if (tieneError(grupo.controls.repeticiones)) {
+                  <p class="error" [id]="'ej-' + i + '-repeticiones-error'">Número entero entre 1 y 1000.</p>
+                }
+              </div>
+
+              <div class="grupo-campo">
+                <label class="etiqueta" [for]="'ej-' + i + '-peso'">Peso en kg (opcional)</label>
+                <input
+                  class="campo"
+                  type="number"
+                  min="0.01"
+                  step="0.5"
+                  formControlName="peso"
+                  placeholder="Vacío = peso corporal"
+                  [id]="'ej-' + i + '-peso'"
+                  [attr.aria-invalid]="tieneError(grupo.controls.peso)"
+                  [attr.aria-describedby]="tieneError(grupo.controls.peso) ? 'ej-' + i + '-peso-error' : null"
+                />
+                @if (tieneError(grupo.controls.peso)) {
+                  <p class="error" [id]="'ej-' + i + '-peso-error'">Debe ser un número positivo (máximo 9999.99).</p>
+                }
+              </div>
+
+              <div class="grupo-campo campo-completo">
+                <label class="etiqueta" [for]="'ej-' + i + '-notas'">Notas (opcional)</label>
+                <input
+                  class="campo"
+                  type="text"
+                  formControlName="notas"
+                  placeholder="Ej: bajar lento, pausa arriba..."
+                  [id]="'ej-' + i + '-notas'"
+                  [attr.aria-invalid]="tieneError(grupo.controls.notas)"
+                  [attr.aria-describedby]="tieneError(grupo.controls.notas) ? 'ej-' + i + '-notas-error' : null"
+                />
+                @if (tieneError(grupo.controls.notas)) {
+                  <p class="error" [id]="'ej-' + i + '-notas-error'">Máximo 500 caracteres.</p>
+                }
+              </div>
+            </div>
+          </li>
+        } @empty {
+          <li class="estado">Esta rutina todavía no tiene ejercicios. Agregá uno con "+ Agregar ejercicio".</li>
+        }
+      </ol>
+    </section>
+
+    <!-- Error general: formulario inválido o error de la API (ej. nombre repetido). -->
+    @if (errorGuardado()) {
+      <div class="error-general" role="alert">{{ errorGuardado() }}</div>
+    }
+
+    <div class="acciones-formulario">
+      <a class="boton boton-secundario" [routerLink]="esEdicion() ? ['/rutinas', idRutina()] : ['/rutinas']">Cancelar</a>
+      <!-- type="submit": dispara (ngSubmit) en el <form>. -->
+      <button type="submit" class="boton" [disabled]="guardando()">
+        @if (guardando()) {
+          Guardando...
+        } @else if (esEdicion()) {
+          Guardar cambios
+        } @else {
+          Crear rutina
+        }
+      </button>
+    </div>
+  </form>
+}
