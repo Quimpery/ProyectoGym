@@ -1,0 +1,25 @@
+<!--
+  LAYOUT de la aplicación
+  ------------------------------------------------------------
+  - routerLink="/rutinas" navega SIN recargar la página (a diferencia de
+    href, que recarga todo y pierde el estado de la app).
+  - routerLinkActive="activo" le agrega la clase CSS "activo" al link
+    cuando esa ruta es la actual: sirve para resaltar el menú.
+-->
+<header class="barra">
+  <div class="contenedor barra-contenido">
+    <a routerLink="/rutinas" class="marca">
+      <!-- aria-hidden: el lector de pantalla ignora el emoji decorativo. -->
+      <span aria-hidden="true">🏋️</span> Gym Rutinas
+    </a>
+
+    <nav aria-label="Navegación principal">
+      <a routerLink="/rutinas" routerLinkActive="activo">Rutinas</a>
+    </nav>
+  </div>
+</header>
+
+<main class="contenedor">
+  <!-- Acá el router dibuja el componente que corresponde a la URL actual. -->
+  <router-outlet />
+</main>

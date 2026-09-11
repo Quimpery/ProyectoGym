@@ -1,0 +1,55 @@
+/*
+  CSS del LAYOUT (componente App): barra superior y área principal.
+  Recordá: este CSS solo aplica a app.html (está encapsulado).
+*/
+
+.barra {
+  margin-bottom: 1.5rem;
+  background: var(--color-superficie);
+  border-bottom: 1px solid var(--color-borde);
+}
+
+/* flex: pone la marca a la izquierda y el menú a la derecha. */
+.barra-contenido {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  min-height: 60px;
+}
+
+.marca {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-texto);
+  text-decoration: none;
+}
+
+nav {
+  display: flex;
+  gap: 0.25rem;
+}
+
+nav a {
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  font-weight: 600;
+  color: var(--color-texto-suave);
+  text-decoration: none;
+}
+
+nav a:hover {
+  color: var(--color-texto);
+  background: var(--color-gris-claro);
+}
+
+/* Clase que agrega routerLinkActive al link de la ruta actual. */
+nav a.activo {
+  color: var(--color-primario-oscuro);
+  background: var(--color-primario-claro);
+}
+
+main {
+  padding-bottom: 3rem;
+}
