@@ -1,0 +1,25 @@
+# ------------------------------------------------------------
+# .gitignore: archivos que Git NO tiene que subir al repositorio.
+# Regla general: no se sube nada que se pueda regenerar
+# (compilados, dependencias descargadas, configuraciones del IDE).
+# ------------------------------------------------------------
+
+# ---- .NET (Backend) ----
+# bin/ y obj/ son el resultado de compilar. Se regeneran con "dotnet build".
+bin/
+obj/
+# Carpeta interna de Visual Studio (índices, caché, layout de ventanas).
+.vs/
+*.user
+
+# ---- Angular / Node (frontend) ----
+# node_modules/ tiene miles de archivos; se regenera con "npm install".
+node_modules/
+# dist/ es el resultado de "ng build".
+dist/
+# Caché del compilador de Angular.
+.angular/
+
+# ---- Sistema operativo ----
+Thumbs.db
+.DS_Store
